@@ -209,17 +209,17 @@ class EmailSendingService
             $transport->setAutoTls(false);
         }
 
-        // Disable certificate verification when running locally or with self-signed certs.
-        // This can be made configurable per account if needed.
-        /** @var SocketStream $stream */
-        $stream = $transport->getStream();
-        $stream->setStreamOptions([
-            'ssl' => [
-                'verify_peer'      => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true,
-            ],
-        ]);
+        if (app()->isLocal()) {
+            /** @var SocketStream $stream */
+            $stream = $transport->getStream();
+            $stream->setStreamOptions([
+                'ssl' => [
+                    'verify_peer'       => false,
+                    'verify_peer_name'  => false,
+                    'allow_self_signed' => true,
+                ],
+            ]);
+        }
 
         return $transport;
     }
