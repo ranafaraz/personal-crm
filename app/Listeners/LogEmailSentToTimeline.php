@@ -3,9 +3,12 @@
 namespace App\Listeners;
 
 use App\Events\EmailSent;
+use App\Jobs\DispatchCrmNotificationJob;
 use App\Models\EmailMessage;
 use App\Models\Opportunity;
 use App\Models\TimelineEvent;
+use App\Models\User;
+use App\Notifications\EmailSentNotification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
 class LogEmailSentToTimeline implements ShouldQueue
@@ -52,6 +55,11 @@ class LogEmailSentToTimeline implements ShouldQueue
             // Bump last_activity_at on the opportunity
             Opportunity::where('id', $emailMessage->opportunity_id)
                 ->update(['last_activity_at' => now()]);
+        }
+
+        $user = User::find($emailMessage->user_id);
+        if ($user) {
+            DispatchCrmNotificationJob::dispatch($user, new EmailSentNotification($emailMessage));
         }
     }
 }

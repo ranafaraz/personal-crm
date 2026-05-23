@@ -3,9 +3,12 @@
 namespace App\Listeners;
 
 use App\Events\EmailFailed;
+use App\Jobs\DispatchCrmNotificationJob;
 use App\Models\EmailMessage;
 use App\Models\Opportunity;
 use App\Models\TimelineEvent;
+use App\Models\User;
+use App\Notifications\EmailFailedNotification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
 class LogEmailFailedToTimeline implements ShouldQueue
@@ -48,6 +51,11 @@ class LogEmailFailedToTimeline implements ShouldQueue
                     'opportunity_id' => $emailMessage->opportunity_id,
                 ]),
             ]));
+        }
+
+        $user = User::find($emailMessage->user_id);
+        if ($user) {
+            DispatchCrmNotificationJob::dispatch($user, new EmailFailedNotification($emailMessage, $reason));
         }
     }
 }

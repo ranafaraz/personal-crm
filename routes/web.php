@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ContactImportController;
 use App\Http\Controllers\DashboardController;
@@ -161,6 +162,13 @@ Route::middleware('auth')->group(function () {
         Route::delete('settings/team/{user}', [TeamController::class, 'destroy'])->name('team.destroy');
         Route::patch('settings/team/{user}/reset-password', [TeamController::class, 'resetPassword'])->name('team.reset-password');
     });
+
+    // Notifications
+    // ---------------------------------------------------------------------------
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::post('notifications/preferences', [NotificationController::class, 'updatePreference'])->name('notifications.preferences');
 });
 
 // ---------------------------------------------------------------------------

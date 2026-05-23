@@ -21,7 +21,7 @@ class OpportunityFactory extends Factory
         return [
             'user_id'          => User::factory(),
             'title'            => fake()->sentence(4),
-            'type'             => fake()->randomElement(['job', 'scholarship', 'research', 'grant', 'other']),
+            'type'             => fake()->randomElement(['job', 'scholarship', 'research', 'grant', 'networking']),
             'organization'     => fake()->company(),
             'description'      => fake()->optional(0.7)->paragraph(),
             'url'              => fake()->optional(0.5)->url(),

@@ -3,10 +3,14 @@
 namespace App\Listeners;
 
 use App\Events\ReplyReceived;
+use App\Jobs\DispatchCrmNotificationJob;
 use App\Models\Contact;
 use App\Models\InboxMessage;
 use App\Models\Opportunity;
 use App\Models\TimelineEvent;
+use App\Models\User;
+use App\Notifications\PositiveReplyNotification;
+use App\Notifications\ReplyReceivedNotification;
 use App\Services\ImapSyncService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
@@ -84,6 +88,16 @@ class HandleReplyReceived implements ShouldQueue
             // 5. Update last_contacted_at on the contact
             Contact::where('id', $inboxMessage->matched_contact_id)
                 ->update(['last_contacted_at' => $inboxMessage->received_at ?? now()]);
+        }
+
+        // 6. Dispatch CRM notifications
+        $user = User::find($inboxMessage->user_id);
+        if ($user) {
+            DispatchCrmNotificationJob::dispatch($user, new ReplyReceivedNotification($inboxMessage));
+
+            if ($inboxMessage->sentiment === 'positive') {
+                DispatchCrmNotificationJob::dispatch($user, new PositiveReplyNotification($inboxMessage));
+            }
         }
     }
 }

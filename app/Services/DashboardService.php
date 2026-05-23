@@ -259,6 +259,19 @@ class DashboardService
         ];
     }
 
+    /**
+     * Return upcoming deadlines for the dashboard widget (next 30 days).
+     */
+    public function getUpcomingDeadlines(User $user, int $days = 30): \Illuminate\Database\Eloquent\Collection
+    {
+        return Opportunity::where('user_id', $user->id)
+            ->whereNotNull('deadline')
+            ->whereBetween('deadline', [Carbon::today(), Carbon::today()->addDays($days)])
+            ->orderBy('deadline')
+            ->limit(10)
+            ->get();
+    }
+
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
