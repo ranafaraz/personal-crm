@@ -12,7 +12,7 @@ class InboxMessageController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = InboxMessage::where('user_id', $request->user()->id)
+        $query = $this->tenantQuery(InboxMessage::class)
             ->with(['emailAccount', 'matchedContact', 'matchedOpportunity']);
 
         if ($reviewStatus = $request->input('review_status')) {
@@ -27,7 +27,7 @@ class InboxMessageController extends Controller
 
         $messages = $query->orderByDesc('received_at')->paginate(25)->withQueryString();
 
-        $emailAccounts = EmailAccount::where('user_id', $request->user()->id)
+        $emailAccounts = $this->tenantQuery(EmailAccount::class)
             ->orderBy('name')
             ->get();
 
@@ -36,7 +36,7 @@ class InboxMessageController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $message = InboxMessage::where('user_id', $request->user()->id)
+        $message = $this->tenantQuery(InboxMessage::class)
             ->with(['emailAccount', 'matchedContact', 'matchedOpportunity', 'matchedOutbound'])
             ->findOrFail($id);
 
@@ -50,7 +50,7 @@ class InboxMessageController extends Controller
 
     public function markReviewed(Request $request, int $id): RedirectResponse
     {
-        $message = InboxMessage::where('user_id', $request->user()->id)->findOrFail($id);
+        $message = $this->tenantQuery(InboxMessage::class)->findOrFail($id);
 
         $request->validate([
             'review_status' => 'required|in:reviewed,pending,ignored',
@@ -68,7 +68,7 @@ class InboxMessageController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $message = InboxMessage::where('user_id', $request->user()->id)->findOrFail($id);
+        $message = $this->tenantQuery(InboxMessage::class)->findOrFail($id);
 
         $message->delete();
 

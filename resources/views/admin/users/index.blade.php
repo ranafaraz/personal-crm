@@ -1,6 +1,6 @@
-@extends('admin.layout')
+@extends('layouts.app')
 @section('title', 'All Users')
-@section('header', 'All Users')
+@section('page-title', 'All Users')
 
 @section('content')
 <form method="GET" class="flex gap-3 mb-5">

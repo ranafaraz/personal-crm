@@ -33,7 +33,7 @@
 
     {{-- List --}}
     <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        @if($suppressions->isEmpty())
+        @if($entries->isEmpty())
             <div class="text-center py-12">
                 <p class="text-slate-500">No emails suppressed yet.</p>
             </div>
@@ -49,7 +49,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @foreach($suppressions as $item)
+                    @foreach($entries as $item)
                     <tr class="hover:bg-slate-50">
                         <td class="px-4 py-3 font-mono text-sm text-slate-800">{{ $item->email }}</td>
                         <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">{{ ucfirst($item->reason) }}</span></td>
@@ -65,8 +65,8 @@
                     @endforeach
                 </tbody>
             </table>
-            @if($suppressions->hasPages())
-                <div class="px-4 py-3 border-t border-slate-200">{{ $suppressions->withQueryString()->links() }}</div>
+            @if($entries->hasPages())
+                <div class="px-4 py-3 border-t border-slate-200">{{ $entries->withQueryString()->links() }}</div>
             @endif
         @endif
     </div>

@@ -1,6 +1,6 @@
-@extends('admin.layout')
+@extends('layouts.app')
 @section('title', $tenant->name)
-@section('header', $tenant->name)
+@section('page-title', $tenant->name)
 
 @section('header-actions')
     <a href="{{ route('admin.tenants.edit', $tenant) }}"

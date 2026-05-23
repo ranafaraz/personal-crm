@@ -22,7 +22,7 @@ class EmailAccountController extends Controller
 
     public function index(Request $request): View
     {
-        $accounts = EmailAccount::where('user_id', $request->user()->id)
+        $accounts = $this->tenantQuery(EmailAccount::class)
             ->withCount('emailMessages')
             ->orderByDesc('created_at')
             ->paginate(20);
@@ -38,9 +38,17 @@ class EmailAccountController extends Controller
     public function store(StoreEmailAccountRequest $request): RedirectResponse
     {
         $data = $request->validated();
-        $data['user_id'] = $request->user()->id;
 
-        EmailAccount::create($data);
+        $data['imap_host'] ??= '';
+        $data['imap_port'] ??= 993;
+        $data['imap_encryption'] ??= 'ssl';
+        $data['imap_username'] ??= $data['email'];
+        $data['imap_password'] ??= $data['smtp_password'];
+        $data['daily_limit'] ??= 50;
+        $data['hourly_limit'] ??= 10;
+        $data['min_delay_seconds'] ??= 30;
+
+        EmailAccount::create($this->tenantData($data));
 
         return redirect()->route('email-accounts.index')
             ->with('success', 'Email account created successfully.');
@@ -48,7 +56,7 @@ class EmailAccountController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $account = EmailAccount::where('user_id', $request->user()->id)->findOrFail($id);
+        $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);
 
         $this->authorize('view', $account);
 
@@ -62,7 +70,7 @@ class EmailAccountController extends Controller
 
     public function edit(Request $request, int $id): View
     {
-        $account = EmailAccount::where('user_id', $request->user()->id)->findOrFail($id);
+        $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);
 
         $this->authorize('update', $account);
 
@@ -72,7 +80,7 @@ class EmailAccountController extends Controller
 
     public function update(UpdateEmailAccountRequest $request, int $id): RedirectResponse
     {
-        $account = EmailAccount::where('user_id', $request->user()->id)->findOrFail($id);
+        $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);
 
         $this->authorize('update', $account);
 
@@ -94,7 +102,7 @@ class EmailAccountController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $account = EmailAccount::where('user_id', $request->user()->id)->findOrFail($id);
+        $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);
 
         $this->authorize('delete', $account);
 
@@ -106,7 +114,7 @@ class EmailAccountController extends Controller
 
     public function testSmtp(Request $request, int $id): JsonResponse
     {
-        $account = EmailAccount::where('user_id', $request->user()->id)->findOrFail($id);
+        $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);
 
         $this->authorize('view', $account);
 
@@ -117,7 +125,7 @@ class EmailAccountController extends Controller
 
     public function testImap(Request $request, int $id): JsonResponse
     {
-        $account = EmailAccount::where('user_id', $request->user()->id)->findOrFail($id);
+        $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);
 
         $this->authorize('view', $account);
 
@@ -128,7 +136,7 @@ class EmailAccountController extends Controller
 
     public function syncInbox(Request $request, int $id): RedirectResponse
     {
-        $account = EmailAccount::where('user_id', $request->user()->id)->findOrFail($id);
+        $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);
 
         $this->authorize('update', $account);
 

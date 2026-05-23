@@ -30,9 +30,10 @@
                 </div>
                 <p class="text-xs text-slate-600 line-clamp-3 leading-relaxed">{{ Str::limit(strip_tags($template->body), 150) }}</p>
                 @if($template->variables && count($template->variables) > 0)
+                    @php $variables = array_slice((array) $template->variables, 0, 5); @endphp
                     <div class="flex flex-wrap gap-1">
-                        @foreach(array_slice((array)$template->variables, 0, 5) as $var)
-                            <span class="text-xs bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-mono">{{"{{"}}{{ $var }}{{"}}"}}</span>
+                        @foreach($variables as $var)
+                            <span class="text-xs bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-mono">{{ '{' . '{' . $var . '}' . '}' }}</span>
                         @endforeach
                     </div>
                 @endif

@@ -12,7 +12,7 @@ class ContactImportController extends Controller
 {
     public function index(Request $request): View
     {
-        $imports = ContactImport::where('user_id', $request->user()->id)
+        $imports = $this->tenantQuery(ContactImport::class)
             ->orderByDesc('created_at')
             ->paginate(20);
 
@@ -33,12 +33,11 @@ class ContactImportController extends Controller
         $file = $request->file('csv_file');
         $path = $file->store('imports', 'local');
 
-        $import = ContactImport::create([
-            'user_id'   => $request->user()->id,
+        $import = ContactImport::create($this->tenantData([
             'file_name' => $file->getClientOriginalName(),
             'file_path' => $path,
             'status'    => 'pending',
-        ]);
+        ]));
 
         ProcessContactImportJob::dispatch($import);
 
@@ -48,7 +47,7 @@ class ContactImportController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $import = ContactImport::where('user_id', $request->user()->id)->findOrFail($id);
+        $import = $this->tenantQuery(ContactImport::class)->findOrFail($id);
         $rows = $import->rows()->orderBy('row_number')->paginate(50);
 
         return view('imports.show', compact('import', 'rows'));

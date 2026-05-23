@@ -15,7 +15,7 @@ class TagController extends Controller
 {
     public function index(Request $request): View
     {
-        $tags = Tag::where('user_id', $request->user()->id)
+        $tags = $this->tenantQuery(Tag::class)
             ->withCount(['contacts', 'opportunities'])
             ->orderBy('name')
             ->paginate(50);
@@ -30,12 +30,11 @@ class TagController extends Controller
             'color' => 'nullable|string|max:20',
         ]);
 
-        $data['user_id'] = $request->user()->id;
-        $data['slug']    = Str::slug($data['name']);
+        $data['slug'] = Str::slug($data['name']);
 
         $tag = Tag::firstOrCreate(
-            ['user_id' => $data['user_id'], 'slug' => $data['slug']],
-            $data
+            array_merge($this->tenantScope(), ['slug' => $data['slug']]),
+            $this->tenantData($data)
         );
 
         if ($request->wantsJson()) {
@@ -47,7 +46,7 @@ class TagController extends Controller
 
     public function update(Request $request, int $id): RedirectResponse|JsonResponse
     {
-        $tag = Tag::where('user_id', $request->user()->id)->findOrFail($id);
+        $tag = $this->tenantQuery(Tag::class)->findOrFail($id);
 
         $data = $request->validate([
             'name'  => 'required|string|max:100',
@@ -66,7 +65,7 @@ class TagController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse|JsonResponse
     {
-        $tag = Tag::where('user_id', $request->user()->id)->findOrFail($id);
+        $tag = $this->tenantQuery(Tag::class)->findOrFail($id);
 
         $tag->delete();
 
@@ -88,9 +87,9 @@ class TagController extends Controller
             'taggable_id'  => 'required|integer',
         ]);
 
-        $tag = Tag::where('user_id', $request->user()->id)->findOrFail($data['tag_id']);
+        $tag = $this->tenantQuery(Tag::class)->findOrFail($data['tag_id']);
 
-        $model = $this->resolveTaggable($data['taggable_type'], $data['taggable_id'], $request->user()->id);
+        $model = $this->resolveTaggable($data['taggable_type'], $data['taggable_id']);
 
         $model->tags()->syncWithoutDetaching([$tag->id]);
 
@@ -108,20 +107,20 @@ class TagController extends Controller
             'taggable_id'   => 'required|integer',
         ]);
 
-        $tag = Tag::where('user_id', $request->user()->id)->findOrFail($data['tag_id']);
+        $tag = $this->tenantQuery(Tag::class)->findOrFail($data['tag_id']);
 
-        $model = $this->resolveTaggable($data['taggable_type'], $data['taggable_id'], $request->user()->id);
+        $model = $this->resolveTaggable($data['taggable_type'], $data['taggable_id']);
 
         $model->tags()->detach($tag->id);
 
         return response()->json(['success' => true]);
     }
 
-    private function resolveTaggable(string $type, int $id, int $userId): Contact|Opportunity
+    private function resolveTaggable(string $type, int $id): Contact|Opportunity
     {
         return match ($type) {
-            'contact'     => Contact::where('user_id', $userId)->findOrFail($id),
-            'opportunity' => Opportunity::where('user_id', $userId)->findOrFail($id),
+            'contact'     => $this->tenantQuery(Contact::class)->findOrFail($id),
+            'opportunity' => $this->tenantQuery(Opportunity::class)->findOrFail($id),
         };
     }
 }

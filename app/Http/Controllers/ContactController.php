@@ -15,10 +15,8 @@ class ContactController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = Contact::where('user_id', $request->user()->id)
-            ->with('tags');
+        $query = $this->tenantQuery(Contact::class)->with('tags');
 
-        // Search
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
@@ -28,19 +26,16 @@ class ContactController extends Controller
             });
         }
 
-        // Filter by status
         if ($status = $request->input('status')) {
             $query->where('status', $status);
         }
 
-        // Filter by tag
         if ($tagId = $request->input('tag')) {
             $query->whereHas('tags', fn ($q) => $q->where('tags.id', $tagId));
         }
 
         $contacts = $query->orderByDesc('created_at')->paginate(30)->withQueryString();
-
-        $tags = Tag::where('user_id', $request->user()->id)->orderBy('name')->get();
+        $tags     = $this->tenantQuery(Tag::class)->orderBy('name')->get();
 
         return view('contacts.index', compact('contacts', 'tags'));
     }
@@ -52,13 +47,11 @@ class ContactController extends Controller
 
     public function store(StoreContactRequest $request): RedirectResponse
     {
-        $data = $request->validated();
+        $data   = $request->validated();
         $tagIds = $data['tags'] ?? [];
         unset($data['tags']);
 
-        $data['user_id'] = $request->user()->id;
-
-        $contact = Contact::create($data);
+        $contact = Contact::create($this->tenantData($data));
 
         if ($tagIds) {
             $contact->tags()->sync($tagIds);
@@ -70,40 +63,35 @@ class ContactController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $contact = Contact::where('user_id', $request->user()->id)
+        $contact = $this->tenantQuery(Contact::class)
             ->with(['tags', 'opportunities', 'emailMessages.emailAccount'])
             ->findOrFail($id);
 
         $this->authorize('view', $contact);
 
-        $events = $contact->timelineEvents()->orderByDesc('happened_at')->get();
+        $events  = $contact->timelineEvents()->orderByDesc('happened_at')->get();
         $opportunities = $contact->opportunities;
-        $emails = $contact->emailMessages()->orderByDesc('created_at')->get();
-        $timeline = $events;
+        $emails  = $contact->emailMessages()->orderByDesc('created_at')->get();
 
-        return view('contacts.show', compact('contact', 'events', 'opportunities', 'emails', 'timeline'));
+        return view('contacts.show', compact('contact', 'events', 'opportunities', 'emails'));
     }
 
     public function edit(Request $request, int $id): View
     {
-        $contact = Contact::where('user_id', $request->user()->id)
-            ->with('tags')
-            ->findOrFail($id);
-
+        $contact = $this->tenantQuery(Contact::class)->with('tags')->findOrFail($id);
         $this->authorize('update', $contact);
 
-        $tags = Tag::where('user_id', $request->user()->id)->orderBy('name')->get();
+        $tags = $this->tenantQuery(Tag::class)->orderBy('name')->get();
 
         return view('contacts.edit', compact('contact', 'tags'));
     }
 
     public function update(UpdateContactRequest $request, int $id): RedirectResponse
     {
-        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
-
+        $contact = $this->tenantQuery(Contact::class)->findOrFail($id);
         $this->authorize('update', $contact);
 
-        $data = $request->validated();
+        $data   = $request->validated();
         $tagIds = $data['tags'] ?? [];
         unset($data['tags']);
 
@@ -116,26 +104,22 @@ class ContactController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
-
+        $contact = $this->tenantQuery(Contact::class)->findOrFail($id);
         $this->authorize('delete', $contact);
 
         $contact->delete();
 
-        return redirect()->route('contacts.index')
-            ->with('success', 'Contact deleted.');
+        return redirect()->route('contacts.index')->with('success', 'Contact deleted.');
     }
 
     public function suppress(Request $request, int $id): RedirectResponse
     {
-        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
-
+        $contact = $this->tenantQuery(Contact::class)->findOrFail($id);
         $this->authorize('update', $contact);
 
-        // Add to suppression list if not already there
         SuppressionList::firstOrCreate(
-            ['user_id' => $request->user()->id, 'email' => strtolower($contact->email)],
-            ['reason' => 'manual', 'notes' => 'Suppressed from contact record.']
+            array_merge($this->tenantScope(), ['email' => strtolower($contact->email)]),
+            ['user_id' => auth()->id(), 'reason' => 'manual', 'notes' => 'Suppressed from contact record.']
         );
 
         $contact->update(['status' => 'suppressed']);

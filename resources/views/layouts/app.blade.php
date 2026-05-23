@@ -197,6 +197,8 @@
 
             <div class="flex-1"></div>
 
+            @yield('header-actions')
+
             {{-- Header Actions --}}
             <div class="flex items-center gap-3">
                 {{-- Notification Bell --}}

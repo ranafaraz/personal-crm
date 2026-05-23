@@ -29,6 +29,17 @@ class DashboardService
      * @param  array $filters
      * @return array<string, mixed>
      */
+    private function q(string $model, User $user): \Illuminate\Database\Eloquent\Builder
+    {
+        if ($user->isSuperAdmin()) {
+            return $model::where('user_id', $user->id);
+        }
+        if (! $user->tenant_id) {
+            return $model::where('user_id', $user->id);
+        }
+        return $model::where('tenant_id', $user->tenant_id);
+    }
+
     public function getStats(User $user, array $filters = []): array
     {
         $userId          = $user->id;
@@ -42,7 +53,7 @@ class DashboardService
         // -----------------------------------------------------------------
         // Base opportunity query (respects all filters)
         // -----------------------------------------------------------------
-        $oppsBase = Opportunity::where('user_id', $userId);
+        $oppsBase = $this->q(Opportunity::class, $user);
 
         if ($typeFilter)     { $oppsBase->where('type', $typeFilter); }
         if ($statusFilter)   { $oppsBase->where('status', $statusFilter); }
@@ -62,7 +73,7 @@ class DashboardService
         // -----------------------------------------------------------------
         // Follow-ups
         // -----------------------------------------------------------------
-        $followUpsDueToday = FollowUp::where('user_id', $userId)
+        $followUpsDueToday = $this->q(FollowUp::class, $user)
             ->where('status', 'pending')
             ->whereDate('due_at', Carbon::today())
             ->count();
@@ -70,7 +81,7 @@ class DashboardService
         // -----------------------------------------------------------------
         // Scheduled sends today
         // -----------------------------------------------------------------
-        $emailBase = EmailMessage::where('user_id', $userId);
+        $emailBase = $this->q(EmailMessage::class, $user);
         if ($emailAccountId) {
             $emailBase->where('email_account_id', $emailAccountId);
         }
@@ -83,7 +94,7 @@ class DashboardService
         // -----------------------------------------------------------------
         // Replies needing review (matched inbox messages, pending review)
         // -----------------------------------------------------------------
-        $repliesNeedingReview = InboxMessage::where('user_id', $userId)
+        $repliesNeedingReview = $this->q(InboxMessage::class, $user)
             ->where('review_status', 'pending')
             ->whereNotNull('matched_outbound_id')
             ->count();
@@ -99,7 +110,7 @@ class DashboardService
         // -----------------------------------------------------------------
         // Email accounts with health info and usage percentages
         // -----------------------------------------------------------------
-        $emailAccounts = EmailAccount::where('user_id', $userId)
+        $emailAccounts = $this->q(EmailAccount::class, $user)
             ->get()
             ->map(fn (EmailAccount $account) => [
                 'id'                  => $account->id,
@@ -116,7 +127,7 @@ class DashboardService
         // -----------------------------------------------------------------
         // Recent replies (last 10 matched inbox messages)
         // -----------------------------------------------------------------
-        $recentReplies = InboxMessage::where('user_id', $userId)
+        $recentReplies = $this->q(InboxMessage::class, $user)
             ->whereNotNull('matched_outbound_id')
             ->with(['matchedContact', 'matchedOpportunity'])
             ->orderByDesc('received_at')
@@ -137,7 +148,7 @@ class DashboardService
         // -----------------------------------------------------------------
         // Positive replies count
         // -----------------------------------------------------------------
-        $positiveReplies = InboxMessage::where('user_id', $userId)
+        $positiveReplies = $this->q(InboxMessage::class, $user)
             ->where('sentiment', 'positive')
             ->whereNotNull('matched_outbound_id')
             ->count();
@@ -185,7 +196,7 @@ class DashboardService
         // -----------------------------------------------------------------
         // Outreach funnel: count by status
         // -----------------------------------------------------------------
-        $outreachFunnel = Opportunity::where('user_id', $userId)
+        $outreachFunnel = $this->q(Opportunity::class, $user)
             ->select('status', DB::raw('count(*) as total'))
             ->groupBy('status')
             ->pluck('total', 'status')
@@ -194,20 +205,20 @@ class DashboardService
         // -----------------------------------------------------------------
         // Response rate by opportunity type
         // -----------------------------------------------------------------
-        $responseRateByType = $this->buildResponseRateByType($userId, $filters);
+        $responseRateByType = $this->buildResponseRateByType($user, $filters);
 
         // -----------------------------------------------------------------
         // Legacy fields retained for backward compatibility
         // -----------------------------------------------------------------
-        $totalContacts   = Contact::where('user_id', $userId)->count();
+        $totalContacts   = $this->q(Contact::class, $user)->count();
         $totalEmailsSent = (clone $emailBase)->where('status', 'sent')->count();
         $deadlineSoon    = (clone $oppsBase)->deadlineSoon(7)->count();
-        $inboxPending    = InboxMessage::where('user_id', $userId)->where('review_status', 'pending')->count();
-        $followUpsOverdue = FollowUp::where('user_id', $userId)
+        $inboxPending    = $this->q(InboxMessage::class, $user)->where('review_status', 'pending')->count();
+        $followUpsOverdue = $this->q(FollowUp::class, $user)
             ->where('status', 'pending')
             ->where('due_at', '<', Carbon::today())
             ->count();
-        $emailsPerDay = EmailMessage::where('user_id', $userId)
+        $emailsPerDay = $this->q(EmailMessage::class, $user)
             ->where('direction', 'outbound')
             ->where('status', 'sent')
             ->whereBetween('sent_at', [now()->subDays(13)->startOfDay(), now()->endOfDay()])
@@ -216,7 +227,7 @@ class DashboardService
             ->orderBy('date')
             ->pluck('count', 'date')
             ->toArray();
-        $recentOpportunities = Opportunity::where('user_id', $userId)
+        $recentOpportunities = $this->q(Opportunity::class, $user)
             ->orderByDesc('updated_at')
             ->limit(5)
             ->get();
@@ -257,15 +268,16 @@ class DashboardService
      *
      * @return array<string, array{sent: int, replied: int, rate: float}>
      */
-    private function buildResponseRateByType(int $userId, array $filters): array
+    private function buildResponseRateByType(User $user, array $filters): array
     {
-        $typeFilter = $filters['type'] ?? null;
+        $typeFilter   = $filters['type'] ?? null;
+        $emailScope   = $user->isSuperAdmin() ? ['email_messages.user_id' => $user->id] : ['email_messages.tenant_id' => $user->tenant_id];
+        $inboxScope   = $user->isSuperAdmin() ? ['inbox_messages.user_id' => $user->id]  : ['inbox_messages.tenant_id'  => $user->tenant_id];
 
-        // Count outbound emails sent, grouped by opportunity type
         $sentQuery = EmailMessage::query()
             ->select('opportunities.type', DB::raw('count(email_messages.id) as sent_count'))
             ->join('opportunities', 'opportunities.id', '=', 'email_messages.opportunity_id')
-            ->where('email_messages.user_id', $userId)
+            ->where($emailScope)
             ->where('email_messages.status', 'sent')
             ->where('email_messages.direction', 'outbound')
             ->whereNotNull('email_messages.opportunity_id')
@@ -277,11 +289,10 @@ class DashboardService
 
         $sentByType = $sentQuery->pluck('sent_count', 'opportunities.type')->toArray();
 
-        // Count replies, grouped by opportunity type
         $repliedQuery = InboxMessage::query()
             ->select('opportunities.type', DB::raw('count(inbox_messages.id) as replied_count'))
             ->join('opportunities', 'opportunities.id', '=', 'inbox_messages.matched_opportunity_id')
-            ->where('inbox_messages.user_id', $userId)
+            ->where($inboxScope)
             ->whereNotNull('inbox_messages.matched_outbound_id')
             ->groupBy('opportunities.type');
 

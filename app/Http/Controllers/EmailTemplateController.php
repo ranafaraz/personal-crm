@@ -13,7 +13,7 @@ class EmailTemplateController extends Controller
 {
     public function index(Request $request): View
     {
-        $templates = EmailTemplate::where('user_id', $request->user()->id)
+        $templates = $this->tenantQuery(EmailTemplate::class)
             ->orderByDesc('updated_at')
             ->paginate(25);
 
@@ -27,10 +27,7 @@ class EmailTemplateController extends Controller
 
     public function store(StoreEmailTemplateRequest $request): RedirectResponse
     {
-        $data = $request->validated();
-        $data['user_id'] = $request->user()->id;
-
-        $template = EmailTemplate::create($data);
+        $template = EmailTemplate::create($this->tenantData($request->validated()));
 
         return redirect()->route('email-templates.show', $template->id)
             ->with('success', 'Template created successfully.');
@@ -38,7 +35,7 @@ class EmailTemplateController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $template = EmailTemplate::where('user_id', $request->user()->id)->findOrFail($id);
+        $template = $this->tenantQuery(EmailTemplate::class)->findOrFail($id);
 
         $this->authorize('view', $template);
 
@@ -47,7 +44,7 @@ class EmailTemplateController extends Controller
 
     public function edit(Request $request, int $id): View
     {
-        $template = EmailTemplate::where('user_id', $request->user()->id)->findOrFail($id);
+        $template = $this->tenantQuery(EmailTemplate::class)->findOrFail($id);
 
         $this->authorize('update', $template);
 
@@ -56,7 +53,7 @@ class EmailTemplateController extends Controller
 
     public function update(UpdateEmailTemplateRequest $request, int $id): RedirectResponse
     {
-        $template = EmailTemplate::where('user_id', $request->user()->id)->findOrFail($id);
+        $template = $this->tenantQuery(EmailTemplate::class)->findOrFail($id);
 
         $this->authorize('update', $template);
 
@@ -68,7 +65,7 @@ class EmailTemplateController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $template = EmailTemplate::where('user_id', $request->user()->id)->findOrFail($id);
+        $template = $this->tenantQuery(EmailTemplate::class)->findOrFail($id);
 
         $this->authorize('delete', $template);
 
@@ -80,7 +77,7 @@ class EmailTemplateController extends Controller
 
     public function duplicate(Request $request, int $id): RedirectResponse
     {
-        $template = EmailTemplate::where('user_id', $request->user()->id)->findOrFail($id);
+        $template = $this->tenantQuery(EmailTemplate::class)->findOrFail($id);
 
         $this->authorize('view', $template);
 

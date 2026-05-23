@@ -1,6 +1,6 @@
-@extends('admin.layout')
+@extends('layouts.app')
 @section('title', 'Tenants')
-@section('header', 'Tenants')
+@section('page-title', 'Tenants')
 
 @section('header-actions')
     <a href="{{ route('admin.tenants.create') }}"

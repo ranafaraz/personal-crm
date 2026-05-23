@@ -14,8 +14,7 @@ class OpportunityController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = Opportunity::where('user_id', $request->user()->id)
-            ->with('tags');
+        $query = $this->tenantQuery(Opportunity::class)->with('tags');
 
         // Search
         if ($search = $request->input('search')) {
@@ -54,10 +53,9 @@ class OpportunityController extends Controller
         $contactIds = $data['contacts'] ?? [];
         unset($data['tags'], $data['contacts']);
 
-        $data['user_id'] = $request->user()->id;
         $data['last_activity_at'] = now();
 
-        $opportunity = Opportunity::create($data);
+        $opportunity = Opportunity::create($this->tenantData($data));
 
         if ($tagIds) {
             $opportunity->tags()->sync($tagIds);
@@ -72,7 +70,7 @@ class OpportunityController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $opportunity = Opportunity::where('user_id', $request->user()->id)
+        $opportunity = $this->tenantQuery(Opportunity::class)
             ->with([
                 'contacts',
                 'tags',
@@ -85,25 +83,27 @@ class OpportunityController extends Controller
 
         $this->authorize('view', $opportunity);
 
-        return view('opportunities.show', compact('opportunity'));
+        $timeline = $opportunity->timelineEvents;
+
+        return view('opportunities.show', compact('opportunity', 'timeline'));
     }
 
     public function edit(Request $request, int $id): View
     {
-        $opportunity = Opportunity::where('user_id', $request->user()->id)
+        $opportunity = $this->tenantQuery(Opportunity::class)
             ->with(['tags', 'contacts'])
             ->findOrFail($id);
 
         $this->authorize('update', $opportunity);
 
-        $tags = Tag::where('user_id', $request->user()->id)->orderBy('name')->get();
+        $tags = $this->tenantQuery(Tag::class)->orderBy('name')->get();
 
         return view('opportunities.edit', compact('opportunity', 'tags'));
     }
 
     public function update(UpdateOpportunityRequest $request, int $id): RedirectResponse
     {
-        $opportunity = Opportunity::where('user_id', $request->user()->id)->findOrFail($id);
+        $opportunity = $this->tenantQuery(Opportunity::class)->findOrFail($id);
 
         $this->authorize('update', $opportunity);
 
@@ -124,7 +124,7 @@ class OpportunityController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $opportunity = Opportunity::where('user_id', $request->user()->id)->findOrFail($id);
+        $opportunity = $this->tenantQuery(Opportunity::class)->findOrFail($id);
 
         $this->authorize('delete', $opportunity);
 
@@ -136,7 +136,7 @@ class OpportunityController extends Controller
 
     public function updateStatus(Request $request, int $id): RedirectResponse
     {
-        $opportunity = Opportunity::where('user_id', $request->user()->id)->findOrFail($id);
+        $opportunity = $this->tenantQuery(Opportunity::class)->findOrFail($id);
 
         $this->authorize('update', $opportunity);
 

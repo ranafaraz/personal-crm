@@ -18,7 +18,7 @@ class EmailMessageController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = EmailMessage::where('user_id', $request->user()->id)
+        $query = $this->tenantQuery(EmailMessage::class)
             ->with(['emailAccount', 'contact', 'opportunity']);
 
         // Tab: inbox or outbox
@@ -34,7 +34,7 @@ class EmailMessageController extends Controller
 
         $emails = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
 
-        $emailAccounts = EmailAccount::where('user_id', $request->user()->id)
+        $emailAccounts = $this->tenantQuery(EmailAccount::class)
             ->orderBy('name')
             ->get();
 
@@ -43,21 +43,21 @@ class EmailMessageController extends Controller
 
     public function compose(): View
     {
-        $emailAccounts = EmailAccount::where('user_id', auth()->id())
+        $emailAccounts = $this->tenantQuery(EmailAccount::class)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
 
-        $templates = EmailTemplate::where('user_id', auth()->id())
+        $templates = $this->tenantQuery(EmailTemplate::class)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
 
-        $contacts = Contact::where('user_id', auth()->id())
+        $contacts = $this->tenantQuery(Contact::class)
             ->orderBy('first_name')
             ->get(['id', 'first_name', 'last_name', 'email']);
 
-        $opportunities = Opportunity::where('user_id', auth()->id())
+        $opportunities = $this->tenantQuery(Opportunity::class)
             ->orderByDesc('updated_at')
             ->get(['id', 'title']);
 
@@ -68,8 +68,7 @@ class EmailMessageController extends Controller
     {
         $data = $request->validated();
 
-        $message = EmailMessage::create([
-            'user_id'          => $request->user()->id,
+        $message = EmailMessage::create($this->tenantData([
             'email_account_id' => $data['email_account_id'],
             'contact_id'       => $data['contact_id'] ?? null,
             'opportunity_id'   => $data['opportunity_id'] ?? null,
@@ -83,7 +82,7 @@ class EmailMessageController extends Controller
             'direction'        => 'outbound',
             'status'           => 'draft',
             'scheduled_at'     => $data['send_at'] ?? null,
-        ]);
+        ]));
 
         // Increment template usage counter if a template was used
         if (!empty($data['template_id'])) {
@@ -114,7 +113,7 @@ class EmailMessageController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $email = EmailMessage::where('user_id', $request->user()->id)
+        $email = $this->tenantQuery(EmailMessage::class)
             ->with(['emailAccount', 'contact', 'opportunity', 'attachments', 'replies'])
             ->findOrFail($id);
 
@@ -125,7 +124,7 @@ class EmailMessageController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $email = EmailMessage::where('user_id', $request->user()->id)->findOrFail($id);
+        $email = $this->tenantQuery(EmailMessage::class)->findOrFail($id);
 
         $this->authorize('delete', $email);
 
@@ -145,7 +144,7 @@ class EmailMessageController extends Controller
     {
         $request->validate(['template_id' => 'required|integer']);
 
-        $template = EmailTemplate::where('user_id', $request->user()->id)
+        $template = $this->tenantQuery(EmailTemplate::class)
             ->findOrFail($request->integer('template_id'));
 
         return response()->json([

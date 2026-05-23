@@ -14,7 +14,7 @@ WORKDIR /var/www/html
 COPY . .
 
 RUN composer install --optimize-autoloader --no-interaction
-RUN npm ci && npm run build
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi && npm run build
 
 RUN chown -R www-data:www-data storage bootstrap/cache && \
     chmod -R 775 storage bootstrap/cache

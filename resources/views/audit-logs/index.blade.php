@@ -4,7 +4,7 @@
 @section('content')
 <div>
     <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        @if($activities->isEmpty())
+        @if($logs->isEmpty())
             <div class="text-center py-16">
                 <p class="text-slate-500 font-medium">No audit log entries yet.</p>
             </div>
@@ -20,7 +20,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @foreach($activities as $activity)
+                    @foreach($logs as $activity)
                     <tr class="hover:bg-slate-50">
                         <td class="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{{ $activity->created_at->format('M j, Y g:i A') }}</td>
                         <td class="px-4 py-3">
@@ -38,8 +38,8 @@
                     @endforeach
                 </tbody>
             </table>
-            @if($activities->hasPages())
-                <div class="px-4 py-3 border-t border-slate-200">{{ $activities->withQueryString()->links() }}</div>
+            @if($logs->hasPages())
+                <div class="px-4 py-3 border-t border-slate-200">{{ $logs->withQueryString()->links() }}</div>
             @endif
         @endif
     </div>

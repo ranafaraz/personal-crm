@@ -1,6 +1,6 @@
-@extends('admin.layout')
+@extends('layouts.app')
 @section('title', 'Edit — ' . $tenant->name)
-@section('header', 'Edit Tenant: ' . $tenant->name)
+@section('page-title', 'Edit Tenant: ' . $tenant->name)
 
 @section('content')
 <div class="max-w-2xl">

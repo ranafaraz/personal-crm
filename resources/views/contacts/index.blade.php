@@ -75,7 +75,7 @@
                         <td class="px-5 py-3.5" onclick="event.stopPropagation()">
                             <div class="flex items-center gap-3">
                                 <a href="{{ route('contacts.edit', $contact) }}" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Edit</a>
-                                <a href="{{ route('compose.index', ['contact_id' => $contact->id]) }}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Email</a>
+                                <a href="{{ route('compose', ['contact_id' => $contact->id]) }}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Email</a>
                                 <form method="POST" action="{{ route('contacts.destroy', $contact) }}" onsubmit="return confirm('Delete this contact?')">
                                     @csrf
                                     @method('DELETE')

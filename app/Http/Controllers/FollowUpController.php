@@ -11,7 +11,7 @@ class FollowUpController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = FollowUp::where('user_id', $request->user()->id)
+        $query = $this->tenantQuery(FollowUp::class)
             ->with(['opportunity', 'contact', 'emailAccount']);
 
         if ($status = $request->input('status')) {
@@ -34,7 +34,7 @@ class FollowUpController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $followUp = FollowUp::where('user_id', $request->user()->id)
+        $followUp = $this->tenantQuery(FollowUp::class)
             ->with(['opportunity', 'contact', 'emailAccount', 'emailTemplate', 'emailMessage'])
             ->findOrFail($id);
 
@@ -43,7 +43,7 @@ class FollowUpController extends Controller
 
     public function cancel(Request $request, int $id): RedirectResponse
     {
-        $followUp = FollowUp::where('user_id', $request->user()->id)->findOrFail($id);
+        $followUp = $this->tenantQuery(FollowUp::class)->findOrFail($id);
 
         abort_unless($followUp->status === 'pending', 422, 'Only pending follow-ups can be cancelled.');
 
@@ -61,7 +61,7 @@ class FollowUpController extends Controller
 
     public function reschedule(Request $request, int $id): RedirectResponse
     {
-        $followUp = FollowUp::where('user_id', $request->user()->id)->findOrFail($id);
+        $followUp = $this->tenantQuery(FollowUp::class)->findOrFail($id);
 
         abort_unless($followUp->status === 'pending', 422, 'Only pending follow-ups can be rescheduled.');
 

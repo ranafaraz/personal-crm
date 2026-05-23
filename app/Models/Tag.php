@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Tag extends Model
 {
+    use Tenantable;
+
     protected $fillable = [
+        'tenant_id',
         'user_id',
         'name',
         'color',

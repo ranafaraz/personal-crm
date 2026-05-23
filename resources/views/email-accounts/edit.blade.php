@@ -51,7 +51,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-sm font-semibold text-slate-800">SMTP Settings (Outgoing)</h2>
                 <button type="button"
-                    @click="testingSmtp = true; smtpResult = null; fetch('{{ route('email-accounts.test-smtp') }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify(Object.fromEntries(new FormData($el.closest('form')))) }).then(r => r.json()).then(d => { smtpResult = d; testingSmtp = false; }).catch(() => { smtpResult = {success: false, message: 'Request failed'}; testingSmtp = false; })"
+                    @click="testingSmtp = true; smtpResult = null; fetch('{{ route('email-accounts.test-smtp', $account) }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify(Object.fromEntries(new FormData($el.closest('form')))) }).then(r => r.json()).then(d => { smtpResult = d; testingSmtp = false; }).catch(() => { smtpResult = {success: false, message: 'Request failed'}; testingSmtp = false; })"
                     class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
                     :disabled="testingSmtp">
                     <svg x-show="!testingSmtp" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -93,7 +93,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-sm font-semibold text-slate-800">IMAP Settings (Incoming)</h2>
                 <button type="button"
-                    @click="testingImap = true; imapResult = null; fetch('{{ route('email-accounts.test-imap') }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify(Object.fromEntries(new FormData($el.closest('form')))) }).then(r => r.json()).then(d => { imapResult = d; testingImap = false; }).catch(() => { imapResult = {success: false, message: 'Request failed'}; testingImap = false; })"
+                    @click="testingImap = true; imapResult = null; fetch('{{ route('email-accounts.test-imap', $account) }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify(Object.fromEntries(new FormData($el.closest('form')))) }).then(r => r.json()).then(d => { imapResult = d; testingImap = false; }).catch(() => { imapResult = {success: false, message: 'Request failed'}; testingImap = false; })"
                     class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
                     :disabled="testingImap">
                     <svg x-show="!testingImap" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>

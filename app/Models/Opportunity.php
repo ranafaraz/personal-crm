@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,9 +15,10 @@ use Illuminate\Support\Carbon;
 
 class Opportunity extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Tenantable;
 
     protected $fillable = [
+        'tenant_id',
         'user_id',
         'title',
         'type',

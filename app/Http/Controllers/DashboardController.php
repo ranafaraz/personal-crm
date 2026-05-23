@@ -27,7 +27,7 @@ class DashboardController extends Controller
             $filters
         );
 
-        $emailAccounts = EmailAccount::where('user_id', $request->user()->id)
+        $emailAccounts = $this->tenantQuery(EmailAccount::class)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();

@@ -14,7 +14,7 @@ class DocumentController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = Document::where('user_id', $request->user()->id);
+        $query = $this->tenantQuery(Document::class);
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -44,8 +44,7 @@ class DocumentController extends Controller
         $file = $request->file('file');
         $path = $file->store('documents', 'local');
 
-        $document = Document::create([
-            'user_id'       => $request->user()->id,
+        $document = Document::create($this->tenantData([
             'name'          => $data['name'],
             'description'   => $data['description'] ?? null,
             'document_type' => $data['document_type'] ?? null,
@@ -55,7 +54,7 @@ class DocumentController extends Controller
             'file_name'     => $file->getClientOriginalName(),
             'file_size'     => $file->getSize(),
             'mime_type'     => $file->getMimeType(),
-        ]);
+        ]));
 
         return redirect()->route('documents.show', $document->id)
             ->with('success', 'Document uploaded successfully.');
@@ -63,7 +62,7 @@ class DocumentController extends Controller
 
     public function show(Request $request, int $id): View
     {
-        $document = Document::where('user_id', $request->user()->id)->findOrFail($id);
+        $document = $this->tenantQuery(Document::class)->findOrFail($id);
 
         $this->authorize('view', $document);
 
@@ -72,7 +71,7 @@ class DocumentController extends Controller
 
     public function download(Request $request, int $id): StreamedResponse
     {
-        $document = Document::where('user_id', $request->user()->id)->findOrFail($id);
+        $document = $this->tenantQuery(Document::class)->findOrFail($id);
 
         $this->authorize('view', $document);
 
@@ -83,7 +82,7 @@ class DocumentController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $document = Document::where('user_id', $request->user()->id)->findOrFail($id);
+        $document = $this->tenantQuery(Document::class)->findOrFail($id);
 
         $this->authorize('delete', $document);
 

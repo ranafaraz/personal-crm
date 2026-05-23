@@ -7,28 +7,28 @@ use App\Models\User;
 
 class EmailMessagePolicy
 {
-    public function viewAny(User $user): bool
+    public function viewAny(User $user): bool { return true; }
+
+    public function view(User $user, EmailMessage $message): bool
     {
-        return true;
+        return $user->isSuperAdmin()
+            ? $message->user_id === $user->id
+            : $message->tenant_id === $user->tenant_id;
     }
 
-    public function view(User $user, EmailMessage $emailMessage): bool
+    public function create(User $user): bool { return true; }
+
+    public function update(User $user, EmailMessage $message): bool
     {
-        return $user->id === $emailMessage->user_id;
+        return $user->isSuperAdmin()
+            ? $message->user_id === $user->id
+            : $message->tenant_id === $user->tenant_id;
     }
 
-    public function create(User $user): bool
+    public function delete(User $user, EmailMessage $message): bool
     {
-        return true;
-    }
-
-    public function update(User $user, EmailMessage $emailMessage): bool
-    {
-        return $user->id === $emailMessage->user_id;
-    }
-
-    public function delete(User $user, EmailMessage $emailMessage): bool
-    {
-        return $user->id === $emailMessage->user_id;
+        return $user->isSuperAdmin()
+            ? $message->user_id === $user->id
+            : $message->tenant_id === $user->tenant_id;
     }
 }

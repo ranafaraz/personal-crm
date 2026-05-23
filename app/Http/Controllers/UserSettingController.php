@@ -15,7 +15,7 @@ class UserSettingController extends Controller
         $setting = $request->user()->setting
             ?? UserSetting::firstOrCreate(['user_id' => $request->user()->id]);
 
-        $emailAccounts = EmailAccount::where('user_id', $request->user()->id)
+        $emailAccounts = $this->tenantQuery(EmailAccount::class)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -36,7 +36,7 @@ class UserSettingController extends Controller
 
         // Ensure the selected account belongs to this user
         if (!empty($data['default_email_account_id'])) {
-            EmailAccount::where('user_id', $request->user()->id)
+            $this->tenantQuery(EmailAccount::class)
                 ->findOrFail($data['default_email_account_id']);
         }
 

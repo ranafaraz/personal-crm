@@ -1,6 +1,6 @@
-@extends('admin.layout')
+@extends('layouts.app')
 @section('title', 'New Tenant')
-@section('header', 'Create Tenant')
+@section('page-title', 'Create Tenant')
 
 @section('content')
 <div class="max-w-2xl">

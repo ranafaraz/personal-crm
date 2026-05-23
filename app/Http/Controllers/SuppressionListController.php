@@ -11,7 +11,7 @@ class SuppressionListController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = SuppressionList::where('user_id', $request->user()->id);
+        $query = $this->tenantQuery(SuppressionList::class);
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -33,12 +33,11 @@ class SuppressionListController extends Controller
             'notes'  => 'nullable|string|max:2000',
         ]);
 
-        $data['email']   = strtolower(trim($data['email']));
-        $data['user_id'] = $request->user()->id;
+        $data['email'] = strtolower(trim($data['email']));
 
         SuppressionList::firstOrCreate(
-            ['user_id' => $data['user_id'], 'email' => $data['email']],
-            ['reason' => $data['reason'] ?? null, 'notes' => $data['notes'] ?? null]
+            array_merge($this->tenantScope(), ['email' => $data['email']]),
+            array_merge($this->tenantData([]), ['reason' => $data['reason'] ?? null, 'notes' => $data['notes'] ?? null])
         );
 
         return redirect()->route('suppression-list.index')
@@ -47,7 +46,7 @@ class SuppressionListController extends Controller
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $entry = SuppressionList::where('user_id', $request->user()->id)->findOrFail($id);
+        $entry = $this->tenantQuery(SuppressionList::class)->findOrFail($id);
 
         $entry->delete();
 

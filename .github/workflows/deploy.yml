@@ -1,0 +1,43 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /var/www/crm.dexdevs.com
+
+            # Pull latest code
+            git config --global --add safe.directory /var/www/crm.dexdevs.com
+            git pull origin main
+
+            # Install/update PHP dependencies (no dev, optimized)
+            composer install --no-interaction --no-dev --optimize-autoloader
+
+            # Run any pending migrations
+            php artisan migrate --force
+
+            # Clear & re-cache everything
+            php artisan optimize:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            # Restart PHP-FPM to pick up new code
+            systemctl restart php8.4-fpm
+
+            echo "Deploy complete."

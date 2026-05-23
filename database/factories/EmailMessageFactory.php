@@ -39,7 +39,7 @@ class EmailMessageFactory extends Factory
             'failed_at'        => null,
             'failure_reason'   => null,
             'is_follow_up'     => false,
-            'follow_up_number' => null,
+            'follow_up_number' => 0,
             'parent_message_id'=> null,
             'opened_at'        => null,
         ];
