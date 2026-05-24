@@ -48,7 +48,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-sm font-semibold text-slate-800">SMTP Settings (Outgoing)</h2>
                 <button type="button"
-                    @click="smtpResult = {success: false, message: 'Save the account before testing SMTP.'}"
+                    @click="smtpResult = {success: false, message: 'Save the account first, then test SMTP from the account detail page.'}"
                     class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
                     :class="testingSmtp ? 'opacity-50 cursor-not-allowed' : ''"
                     :disabled="testingSmtp">

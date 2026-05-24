@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreEmailAccountRequest;
 use App\Http\Requests\UpdateEmailAccountRequest;
-use App\Jobs\SyncInboxJob;
 use App\Models\EmailAccount;
 use App\Services\EmailSendingService;
 use App\Services\ImapSyncService;
@@ -12,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Throwable;
 
 class EmailAccountController extends Controller
 {
@@ -140,9 +140,21 @@ class EmailAccountController extends Controller
 
         $this->authorize('update', $account);
 
-        SyncInboxJob::dispatch($account);
+        // Run inline — queue worker has been unreliable. For typical inboxes
+        // this returns in well under the request timeout.
+        try {
+            $stats = $this->imapSyncService->syncAccount($account);
+        } catch (Throwable $e) {
+            return redirect()->route('email-accounts.show', $account->id)
+                ->with('error', 'Sync failed: ' . $e->getMessage());
+        }
+
+        if (! empty($stats['errors'])) {
+            return redirect()->route('email-accounts.show', $account->id)
+                ->with('error', 'Sync errors: ' . implode(' | ', array_slice($stats['errors'], 0, 3)));
+        }
 
         return redirect()->route('email-accounts.show', $account->id)
-            ->with('success', 'Inbox sync queued.');
+            ->with('success', "Sync complete — {$stats['synced']} new message(s), {$stats['matched']} matched.");
     }
 }

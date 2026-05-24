@@ -4,7 +4,7 @@
 @section('page-title', $account->name)
 
 @section('content')
-<div class="max-w-5xl space-y-6">
+<div class="max-w-5xl space-y-6" x-data="{ testingSmtp: false, testingImap: false, smtpResult: null, imapResult: null }">
     <div class="bg-white border border-slate-200 rounded-xl p-6">
         <div class="flex items-start justify-between gap-4">
             <div>
@@ -12,13 +12,33 @@
                 <p class="text-sm text-slate-500 mt-1">{{ $account->email }}</p>
                 <p class="text-xs text-slate-400 mt-2">From: {{ $account->from_name }}</p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 flex-wrap justify-end">
+                <button type="button"
+                    @click="testingSmtp = true; smtpResult = null; fetch('{{ route('email-accounts.test-smtp', $account) }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' } }).then(r => r.json()).then(d => { smtpResult = d; testingSmtp = false; }).catch(e => { smtpResult = {success: false, message: 'Request failed: ' + e.message}; testingSmtp = false; })"
+                    class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-3 py-1.5 rounded-lg"
+                    :disabled="testingSmtp">
+                    <span x-text="testingSmtp ? 'Testing…' : 'Test SMTP'"></span>
+                </button>
+                <button type="button"
+                    @click="testingImap = true; imapResult = null; fetch('{{ route('email-accounts.test-imap', $account) }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' } }).then(r => r.json()).then(d => { imapResult = d; testingImap = false; }).catch(e => { imapResult = {success: false, message: 'Request failed: ' + e.message}; testingImap = false; })"
+                    class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-3 py-1.5 rounded-lg"
+                    :disabled="testingImap">
+                    <span x-text="testingImap ? 'Testing…' : 'Test IMAP'"></span>
+                </button>
                 <a href="{{ route('email-accounts.edit', $account) }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-3 py-1.5 rounded-lg">Edit</a>
                 <form method="POST" action="{{ route('email-accounts.sync-inbox', $account) }}">
                     @csrf
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg">Sync Inbox</button>
                 </form>
             </div>
+        </div>
+
+        {{-- Inline test results --}}
+        <div x-show="smtpResult !== null" x-cloak class="mt-4 px-3 py-2 rounded-lg text-sm" :class="smtpResult?.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
+            <strong>SMTP:</strong> <span x-text="smtpResult?.message"></span>
+        </div>
+        <div x-show="imapResult !== null" x-cloak class="mt-2 px-3 py-2 rounded-lg text-sm" :class="imapResult?.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
+            <strong>IMAP:</strong> <span x-text="imapResult?.message"></span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 text-sm">
             <div>

@@ -68,44 +68,23 @@ class SetupAdminCommand extends Command
             $this->info("Email account already exists (ID {$account->id})");
         }
 
-        // 4. Also create dexdevs007@gmail.com as a secondary demo account
-        $demo = EmailAccount::where('user_id', $user->id)
+        // 4. Remove the legacy dexdevs007@gmail.com email account if a previous
+        // run of this command created it — the user has switched to dexdevs@gmail.com
+        // and that's now handled by crm:seed-user.
+        $legacy = EmailAccount::where('user_id', $user->id)
             ->where('email', 'dexdevs007@gmail.com')
             ->first();
-
-        if (!$demo) {
-            $demo = EmailAccount::create([
-                'tenant_id'         => $tenant->id,
-                'user_id'           => $user->id,
-                'name'              => 'DEXDevs Gmail',
-                'email'             => 'dexdevs007@gmail.com',
-                'from_name'         => 'DEXDevs',
-                'smtp_host'         => 'smtp.gmail.com',
-                'smtp_port'         => 587,
-                'smtp_encryption'   => 'tls',
-                'smtp_username'     => 'dexdevs007@gmail.com',
-                'smtp_password'     => 'placeholder_update_in_app',
-                'imap_host'         => 'imap.gmail.com',
-                'imap_port'         => 993,
-                'imap_encryption'   => 'ssl',
-                'imap_username'     => 'dexdevs007@gmail.com',
-                'imap_password'     => 'placeholder_update_in_app',
-                'daily_limit'       => 200,
-                'hourly_limit'      => 30,
-                'min_delay_seconds' => 15,
-                'is_active'         => true,
-                'is_default'        => false,
-                'notes'             => 'DEXDevs demo Gmail — update password in Email Accounts settings',
-            ]);
-            $this->info("Demo email account created (ID {$demo->id}) — update its app password in settings");
-        } else {
-            $this->info("Demo email account already exists (ID {$demo->id})");
+        if ($legacy) {
+            $legacy->forceDelete();
+            $this->info("Removed legacy email account dexdevs007@gmail.com");
         }
 
         $this->newLine();
         $this->info('Setup complete. Login at http://localhost:8080/login');
         $this->info('  Email:    ranafarazahmed@gmail.com');
         $this->info('  Password: dexdevs007');
+        $this->newLine();
+        $this->info('Next: run  php artisan crm:seed-user ranafarazahmed@gmail.com  to seed templates + email accounts.');
 
         return self::SUCCESS;
     }

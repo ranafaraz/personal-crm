@@ -12,11 +12,15 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          MY_PERSONAL_GMAIL_APP_PASSWORD: ${{ secrets.MY_PERSONAL_GMAIL_APP_PASSWORD }}
+          DEXDEVS_GMAIL_APP_PASSWORD: ${{ secrets.DEXDEVS_GMAIL_APP_PASSWORD }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          envs: MY_PERSONAL_GMAIL_APP_PASSWORD,DEXDEVS_GMAIL_APP_PASSWORD
           script: |
             set -e
             cd /var/www/crm.dexdevs.com
@@ -168,6 +172,16 @@ jobs:
             echo "=== recent contact_imports ==="
             php /tmp/state.php 2>&1 || true
             rm -f /tmp/state.php
+            echo "==="
+
+            # ── Seed ranafarazahmed@gmail.com account ─────────────────
+            # Idempotent: leaves existing accounts/templates alone, only adds what's missing.
+            # Passwords come from GitHub secrets if set; otherwise create-account is skipped
+            # but existing accounts still get connection-tested + receive a real test email.
+            echo "=== crm:seed-user (with --send-test) ==="
+            export MY_PERSONAL_GMAIL_APP_PASSWORD="${MY_PERSONAL_GMAIL_APP_PASSWORD:-}"
+            export DEXDEVS_GMAIL_APP_PASSWORD="${DEXDEVS_GMAIL_APP_PASSWORD:-}"
+            php artisan crm:seed-user ranafarazahmed@gmail.com --send-test 2>&1 | tail -80 || true
             echo "==="
 
             set -e
