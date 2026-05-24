@@ -9,15 +9,34 @@
     @livewireStyles
     <style>
         [x-cloak] { display: none !important; }
-        .sidebar-link { @apply flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-colors duration-150 text-sm font-medium; }
-        .sidebar-link.active { @apply bg-slate-700 text-white; }
-        .sidebar-section { @apply px-3 pt-5 pb-1 text-xs font-semibold text-slate-500 uppercase tracking-wider; }
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            color: rgb(203 213 225);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 150ms, background-color 150ms;
+            text-decoration: none;
+        }
+        .sidebar-link:hover { background-color: rgb(51 65 85); color: #fff; }
+        .sidebar-link.active { background-color: rgb(51 65 85); color: #fff; }
+        .sidebar-section {
+            padding: 1.25rem 0.75rem 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: rgb(100 116 139);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
     </style>
     @stack('styles')
 </head>
-<body class="bg-slate-100 font-sans antialiased" x-data="{ sidebarOpen: true }">
+<body class="bg-slate-100 font-sans antialiased">
 
-<div class="flex h-screen overflow-hidden">
+<div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: true }">
     {{-- Sidebar --}}
     <aside class="flex flex-col w-64 min-w-[16rem] bg-slate-900 text-white overflow-y-auto flex-shrink-0" x-show="sidebarOpen">
         {{-- Logo --}}
