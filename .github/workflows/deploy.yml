@@ -126,25 +126,49 @@ jobs:
             tail -50 /var/www/crm.dexdevs.com/storage/logs/laravel.log 2>/dev/null || true
             echo "==="
 
-            # ── Diagnose email-templates/create view ──────────────────
+            # ── Diagnose email-templates/create view (runtime simulation) ──
+            {
+              printf '%s\n' '<?php'
+              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
+              printf '%s\n' 'require "vendor/autoload.php";'
+              printf '%s\n' '$app = require "bootstrap/app.php";'
+              printf '%s\n' '$kernel = $app->make("Illuminate\Contracts\Http\Kernel");'
+              printf '%s\n' '$user = \App\Models\User::where("email","ranafarazahmed@gmail.com")->first();'
+              printf '%s\n' 'if(!$user){echo "user not found\n";exit;}'
+              printf '%s\n' 'auth()->login($user);'
+              printf '%s\n' 'try {'
+              printf '%s\n' '    $request = \Illuminate\Http\Request::create("/email-templates/create","GET");'
+              printf '%s\n' '    $request->setLaravelSession(app("session.store"));'
+              printf '%s\n' '    $request->setUserResolver(fn() => $user);'
+              printf '%s\n' '    $response = $kernel->handle($request);'
+              printf '%s\n' '    echo "status=".$response->status()."\n";'
+              printf '%s\n' '    if ($response->status() >= 500) { echo substr(strip_tags($response->getContent()),0,2000)."\n"; }'
+              printf '%s\n' '    else { echo "body bytes=".strlen($response->getContent())."\n"; }'
+              printf '%s\n' '} catch (\Throwable $e) {'
+              printf '%s\n' '    echo "EXCEPTION: ".get_class($e).": ".$e->getMessage()."\n";'
+              printf '%s\n' '    echo "in ".$e->getFile().":".$e->getLine()."\n";'
+              printf '%s\n' '    $tb = explode("\n", $e->getTraceAsString()); foreach (array_slice($tb,0,8) as $l) echo $l."\n";'
+              printf '%s\n' '}'
+            } > /tmp/check_view.php
+            echo "=== email-templates/create runtime render ==="
+            php /tmp/check_view.php 2>&1 | head -40 || true
+            rm -f /tmp/check_view.php
+            echo "==="
+
+            # ── Diagnose contact_imports state ────────────────────────
             {
               printf '%s\n' '<?php'
               printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
               printf '%s\n' 'require "vendor/autoload.php";'
               printf '%s\n' '$app = require "bootstrap/app.php";'
               printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
-              printf '%s\n' 'try {'
-              printf '%s\n' '    $compiled = app("blade.compiler")->getCompiledPath(resource_path("views/email-templates/create.blade.php"));'
-              printf '%s\n' '    app("blade.compiler")->compile(resource_path("views/email-templates/create.blade.php"));'
-              printf '%s\n' '    echo "email-templates/create.blade.php compiled OK\n";'
-              printf '%s\n' '} catch (\Throwable $e) {'
-              printf '%s\n' '    echo "COMPILE ERROR: ".$e->getMessage()."\n";'
-              printf '%s\n' '    echo "at ".$e->getFile().":".$e->getLine()."\n";'
+              printf '%s\n' 'foreach (\App\Models\ContactImport::orderByDesc("id")->limit(8)->get() as $i) {'
+              printf '%s\n' '    echo sprintf("#%d %s status=%s total=%d imp=%d skip=%d fail=%d err=%s\n",$i->id,$i->file_name,$i->status,$i->total_rows,$i->imported_rows,$i->skipped_rows,$i->failed_rows,substr((string)$i->error_message,0,150));'
               printf '%s\n' '}'
-            } > /tmp/check_view.php
-            echo "=== email-templates/create view compile check ==="
-            php /tmp/check_view.php 2>&1 || true
-            rm -f /tmp/check_view.php
+            } > /tmp/state.php
+            echo "=== recent contact_imports ==="
+            php /tmp/state.php 2>&1 || true
+            rm -f /tmp/state.php
             echo "==="
 
             set -e

@@ -118,6 +118,8 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     // Contact Imports
     // ---------------------------------------------------------------------------
+    Route::get('imports/template', [ContactImportController::class, 'template'])
+        ->name('imports.template');
     Route::resource('imports', ContactImportController::class)
         ->only(['index', 'create', 'store', 'show']);
 

@@ -7,8 +7,14 @@
     <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
         <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
             <p class="font-semibold mb-1">CSV Format</p>
-            <p>Your CSV should include columns like: <code class="font-mono bg-blue-100 px-1 rounded">first_name</code>, <code class="font-mono bg-blue-100 px-1 rounded">last_name</code>, <code class="font-mono bg-blue-100 px-1 rounded">email</code>, <code class="font-mono bg-blue-100 px-1 rounded">company</code>, <code class="font-mono bg-blue-100 px-1 rounded">phone</code>, <code class="font-mono bg-blue-100 px-1 rounded">job_title</code></p>
+            <p>Your CSV should include columns like: <code class="font-mono bg-blue-100 px-1 rounded">first_name</code>, <code class="font-mono bg-blue-100 px-1 rounded">last_name</code>, <code class="font-mono bg-blue-100 px-1 rounded">email</code>, <code class="font-mono bg-blue-100 px-1 rounded">company</code>, <code class="font-mono bg-blue-100 px-1 rounded">phone</code>, <code class="font-mono bg-blue-100 px-1 rounded">job_title</code>, <code class="font-mono bg-blue-100 px-1 rounded">industry</code>, <code class="font-mono bg-blue-100 px-1 rounded">source</code>, <code class="font-mono bg-blue-100 px-1 rounded">linkedin_url</code>, <code class="font-mono bg-blue-100 px-1 rounded">website</code>, <code class="font-mono bg-blue-100 px-1 rounded">city</code>, <code class="font-mono bg-blue-100 px-1 rounded">country</code>, <code class="font-mono bg-blue-100 px-1 rounded">notes</code></p>
             <p class="mt-1">Column headers are auto-detected. The <code class="font-mono bg-blue-100 px-1 rounded">email</code> column is required.</p>
+        </div>
+        <div>
+            <a href="{{ route('imports.template') }}" class="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-lg transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Download CSV Template
+            </a>
         </div>
         <form method="POST" action="{{ route('imports.store') }}" enctype="multipart/form-data" class="space-y-4">
             @csrf
