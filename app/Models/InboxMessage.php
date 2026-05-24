@@ -6,6 +6,7 @@ use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class InboxMessage extends Model
 {
@@ -67,6 +68,11 @@ class InboxMessage extends Model
     public function matchedOutbound(): BelongsTo
     {
         return $this->belongsTo(EmailMessage::class, 'matched_outbound_id');
+    }
+
+    public function tags(): MorphToMany
+    {
+        return $this->morphToMany(Tag::class, 'taggable');
     }
 
     // -------------------------------------------------------------------------

@@ -43,7 +43,8 @@ class OpportunityController extends Controller
 
     public function create(): View
     {
-        return view('opportunities.create');
+        $tags = $this->tenantQuery(Tag::class)->orderBy('name')->get();
+        return view('opportunities.create', compact('tags'));
     }
 
     public function store(StoreOpportunityRequest $request): RedirectResponse

@@ -42,7 +42,8 @@ class ContactController extends Controller
 
     public function create(): View
     {
-        return view('contacts.create');
+        $tags = $this->tenantQuery(Tag::class)->orderBy('name')->get();
+        return view('contacts.create', compact('tags'));
     }
 
     public function store(StoreContactRequest $request): RedirectResponse

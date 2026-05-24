@@ -1,7 +1,7 @@
-<div class="relative" x-data="{ open: @entangle('open') }">
+<div class="relative" x-data="{ open: false }">
     {{-- Bell Button --}}
     <button
-        wire:click="toggle"
+        @click="open = !open; if (open) $wire.refresh()"
         class="relative p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         aria-label="Notifications"
     >
@@ -20,7 +20,7 @@
     <div
         x-show="open"
         x-cloak
-        @click.outside="$wire.open = false"
+        @click.outside="open = false"
         class="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden"
     >
         {{-- Header --}}

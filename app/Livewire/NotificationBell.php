@@ -9,7 +9,6 @@ use Livewire\Component;
 class NotificationBell extends Component
 {
     public int $unreadCount = 0;
-    public bool $open = false;
 
     /** @var Collection<int, \Illuminate\Notifications\DatabaseNotification> */
     public Collection $notifications;
@@ -34,14 +33,6 @@ class NotificationBell extends Component
         $this->notifications = $this->service->getRecentUnread($user, 10);
     }
 
-    public function toggle(): void
-    {
-        $this->open = ! $this->open;
-        if ($this->open) {
-            $this->refresh();
-        }
-    }
-
     public function markRead(string $id): void
     {
         $this->service->markAsRead(auth()->user(), $id);
@@ -51,7 +42,6 @@ class NotificationBell extends Component
     public function markAllRead(): void
     {
         $this->service->markAllAsRead(auth()->user());
-        $this->open = false;
         $this->refresh();
     }
 

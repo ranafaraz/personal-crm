@@ -19,6 +19,7 @@ class StoreContactRequest extends FormRequest
             'email'         => 'required|email|max:255',
             'phone'         => 'nullable|string|max:50',
             'company'       => 'nullable|string|max:255',
+            'industry'      => 'nullable|string|max:255',
             'job_title'     => 'nullable|string|max:255',
             'linkedin_url'  => 'nullable|url|max:500',
             'website'       => 'nullable|url|max:500',

@@ -23,8 +23,8 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">First Name</label>
-                    <input type="text" name="first_name" value="{{ old('first_name') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">First Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="first_name" value="{{ old('first_name') }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
@@ -41,6 +41,15 @@
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Company / Organization</label>
                     <input type="text" name="company" value="{{ old('company') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Industry</label>
+                    <input type="text" name="industry" value="{{ old('industry') }}" list="industry-list" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Technology, Finance...">
+                    <datalist id="industry-list">
+                        @foreach(['Technology','Finance','Healthcare','Education','Marketing','Legal','Real Estate','Manufacturing','Retail','Consulting','Media & Entertainment','Non-profit','Government','Transportation','Energy','Construction'] as $ind)
+                            <option value="{{ $ind }}">
+                        @endforeach
+                    </datalist>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
@@ -66,6 +75,37 @@
                     <label class="block text-sm font-medium text-slate-700 mb-1">Source</label>
                     <input type="text" name="source" value="{{ old('source') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="How did you find this contact?">
                 </div>
+
+                {{-- Tags picker with inline creation --}}
+                <div class="md:col-span-2" x-data="tagPicker({{ $tags->toJson() }}, {{ collect(old('tags', []))->toJson() }})">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tags / Labels</label>
+                    <div class="border border-slate-300 rounded-lg p-2 min-h-[42px] flex flex-wrap gap-1.5 cursor-text" @click="$refs.tagInput.focus()">
+                        <template x-for="tag in selected" :key="tag.id">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                                <span x-text="tag.name"></span>
+                                <input type="hidden" :name="'tags[]'" :value="tag.id">
+                                <button type="button" @click.stop="removeTag(tag)" class="hover:text-red-600">&times;</button>
+                            </span>
+                        </template>
+                        <input x-ref="tagInput" type="text" x-model="search" @input="filterTags()" @keydown.enter.prevent="confirmTag()" @keydown.backspace="backspaceTag()" placeholder="Add tag..." class="flex-1 min-w-[120px] outline-none text-sm px-1 py-0.5">
+                    </div>
+                    {{-- Dropdown --}}
+                    <div x-show="open && (filtered.length > 0 || search.trim().length > 0)" class="relative z-20">
+                        <ul class="absolute top-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm">
+                            <template x-for="tag in filtered" :key="tag.id">
+                                <li @click="addTag(tag)" class="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-indigo-400 flex-shrink-0"></span>
+                                    <span x-text="tag.name"></span>
+                                </li>
+                            </template>
+                            <li x-show="search.trim().length > 0 && !exactMatch()" @click="createTag()" class="px-3 py-2 hover:bg-green-50 cursor-pointer text-green-700 font-medium flex items-center gap-2">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                Create "<span x-text="search.trim()"></span>"
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-700 mb-1">Notes</label>
                     <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">{{ old('notes') }}</textarea>
@@ -79,4 +119,6 @@
         </form>
     </div>
 </div>
+
+@include('partials._tag-picker-script')
 @endsection

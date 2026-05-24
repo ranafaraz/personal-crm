@@ -41,10 +41,10 @@ class ImapSyncService
         try {
             $folder = $client->getFolder('INBOX');
 
-            // Fetch since last_sync_at, or the last 30 days if never synced
+            // Fetch since last_sync_at, or the last 7 days if never synced
             $since = $account->last_sync_at
                 ? $account->last_sync_at->subMinutes(5)  // small overlap to avoid gaps
-                : Carbon::now()->subDays(30);
+                : Carbon::now()->subDays(7);
 
             $messages = $folder->query()
                 ->since($since)
@@ -206,7 +206,7 @@ class ImapSyncService
             'matched_opportunity_id'=> null,
             'matched_outbound_id'   => null,
             'review_status'         => 'pending',
-            'sentiment'             => null,
+            'sentiment'             => 'unknown',
         ]);
 
         // c. Match to a Contact by sender email

@@ -24,6 +24,7 @@ class Contact extends Model
         'email',
         'phone',
         'company',
+        'industry',
         'job_title',
         'linkedin_url',
         'website',

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Contact;
+use App\Models\InboxMessage;
 use App\Models\Opportunity;
 use App\Models\Tag;
 use Illuminate\Http\JsonResponse;
@@ -83,7 +84,7 @@ class TagController extends Controller
     {
         $data = $request->validate([
             'tag_id'       => 'required|integer|exists:tags,id',
-            'taggable_type' => 'required|in:contact,opportunity',
+            'taggable_type' => 'required|in:contact,opportunity,inbox_message',
             'taggable_id'  => 'required|integer',
         ]);
 
@@ -103,7 +104,7 @@ class TagController extends Controller
     {
         $data = $request->validate([
             'tag_id'        => 'required|integer|exists:tags,id',
-            'taggable_type' => 'required|in:contact,opportunity',
+            'taggable_type' => 'required|in:contact,opportunity,inbox_message',
             'taggable_id'   => 'required|integer',
         ]);
 
@@ -116,11 +117,12 @@ class TagController extends Controller
         return response()->json(['success' => true]);
     }
 
-    private function resolveTaggable(string $type, int $id): Contact|Opportunity
+    private function resolveTaggable(string $type, int $id): Contact|Opportunity|InboxMessage
     {
         return match ($type) {
-            'contact'     => $this->tenantQuery(Contact::class)->findOrFail($id),
-            'opportunity' => $this->tenantQuery(Opportunity::class)->findOrFail($id),
+            'contact'       => $this->tenantQuery(Contact::class)->findOrFail($id),
+            'opportunity'   => $this->tenantQuery(Opportunity::class)->findOrFail($id),
+            'inbox_message' => $this->tenantQuery(InboxMessage::class)->findOrFail($id),
         };
     }
 }
