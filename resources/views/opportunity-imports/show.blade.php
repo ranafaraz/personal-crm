@@ -49,7 +49,7 @@
                             {{ $row->raw_data['title'] ?? '—' }}
                         @endif
                     </td>
-                    <td class="px-4 py-2 text-xs text-red-500">{{ $row->error_message ?? '' }}</td>
+                    <td class="px-4 py-2 text-xs {{ $row->status === 'failed' ? 'text-red-500' : 'text-yellow-600' }}">{{ $row->error_message ?? '' }}</td>
                 </tr>
                 @endforeach
             </tbody>

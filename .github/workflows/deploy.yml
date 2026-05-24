@@ -42,4 +42,22 @@ jobs:
             # Restart PHP-FPM to pick up new code
             systemctl restart php8.4-fpm
 
+            # Signal queue workers to gracefully restart with new code
+            php artisan queue:restart
+
+            # Restart supervisor queue worker (try common program names; non-fatal)
+            supervisorctl restart laravel-worker:* 2>/dev/null || \
+            supervisorctl restart laravel-queue:* 2>/dev/null || \
+            supervisorctl restart all 2>/dev/null || \
+            systemctl restart laravel-queue 2>/dev/null || true
+
+            # Re-dispatch any imports stuck in 'pending' (handles post-deploy queue restarts)
+            php artisan tinker --no-interaction --execute="
+            App\Models\ContactImport::where('status','pending')
+                ->each(fn(\$i) => App\Jobs\ProcessContactImportJob::dispatch(\$i));
+            App\Models\OpportunityImport::where('status','pending')
+                ->each(fn(\$i) => App\Jobs\ProcessOpportunityImportJob::dispatch(\$i));
+            echo 'Done.' . PHP_EOL;
+            "
+
             echo "Deploy complete."

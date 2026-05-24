@@ -253,10 +253,19 @@ class CsvImportService
 
             $email = strtolower($email);
 
-            // Upsert: find existing contact by user + email, or create new
-            $contact = Contact::where('user_id', $userId)
+            // Skip if a contact with this email already exists for this user
+            $existing = Contact::where('user_id', $userId)
                 ->where('email', $email)
                 ->first();
+
+            if ($existing) {
+                $row->update([
+                    'status'        => 'skipped',
+                    'contact_id'    => $existing->id,
+                    'error_message' => 'Contact with this email already exists.',
+                ]);
+                return 'skipped';
+            }
 
             $contactData = array_filter([
                 'user_id'      => $userId,
@@ -275,15 +284,10 @@ class CsvImportService
                 'notes'        => $data['notes'] ?? null,
             ], fn ($v) => $v !== null && $v !== '');
 
-            if ($contact) {
-                // Update only non-empty fields so existing data isn't overwritten with blanks
-                $contact->update($contactData);
-            } else {
-                $contact = Contact::create(array_merge($contactData, [
-                    'status' => 'active',
-                    'source' => 'csv_import',
-                ]));
-            }
+            $contact = Contact::create(array_merge($contactData, [
+                'status' => 'active',
+                'source' => $contactData['source'] ?? 'csv_import',
+            ]));
 
             $row->update([
                 'status'     => 'imported',

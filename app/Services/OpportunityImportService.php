@@ -208,6 +208,20 @@ class OpportunityImportService
                 return 'skipped';
             }
 
+            // Skip if an opportunity with the same title already exists for this user
+            $existing = Opportunity::where('user_id', $import->user_id)
+                ->whereRaw('LOWER(title) = ?', [strtolower($title)])
+                ->first();
+
+            if ($existing) {
+                $row->update([
+                    'status'         => 'skipped',
+                    'opportunity_id' => $existing->id,
+                    'error_message'  => 'Opportunity with this title already exists.',
+                ]);
+                return 'skipped';
+            }
+
             $type     = $this->resolveEnum($data['type'] ?? null, self::VALID_TYPES, 'job');
             $status   = $this->resolveEnum($data['status'] ?? null, self::VALID_STATUSES, 'active');
             $priority = $this->resolveEnum($data['priority'] ?? null, self::VALID_PRIORITIES, 'medium');
