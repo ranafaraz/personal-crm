@@ -40,7 +40,8 @@ jobs:
             php artisan view:cache
 
             # ── Storage directory setup ───────────────────────────────
-            mkdir -p storage/app/imports storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs
+            # local disk root is storage/app/private (Laravel 11+ default)
+            mkdir -p storage/app/private/imports storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs
             chown -R www-data:www-data storage/
             chmod -R 775 storage/
             php artisan storage:link --force 2>/dev/null || true

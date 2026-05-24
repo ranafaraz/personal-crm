@@ -6,6 +6,7 @@ use App\Models\Opportunity;
 use App\Models\OpportunityImport;
 use App\Models\OpportunityImportRow;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use League\Csv\Reader;
 use Throwable;
 
@@ -65,7 +66,7 @@ class OpportunityImportService
         $import->update(['status' => 'parsing']);
 
         try {
-            $csv = Reader::createFromPath(storage_path('app/' . $import->file_path), 'r');
+            $csv = Reader::createFromPath(Storage::disk('local')->path($import->file_path), 'r');
             $csv->setHeaderOffset(0);
 
             $headers   = $csv->getHeader();
