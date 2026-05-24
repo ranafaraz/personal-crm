@@ -39,6 +39,12 @@ jobs:
             php artisan route:cache
             php artisan view:cache
 
+            # ── Storage directory setup ───────────────────────────────
+            mkdir -p storage/app/imports storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs
+            chown -R www-data:www-data storage/
+            chmod -R 775 storage/
+            php artisan storage:link --force 2>/dev/null || true
+
             # ── Restart web server ────────────────────────────────────
             systemctl restart php8.4-fpm
 
