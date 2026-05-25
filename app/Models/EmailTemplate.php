@@ -19,9 +19,7 @@ class EmailTemplate extends Model
     {
         return LogOptions::defaults()
             ->logOnly(['name', 'subject', 'body', 'type', 'is_active'])
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
-            ->setDescriptionForEvent(fn (string $event) => "Email template {$event}");
+            ->logOnlyDirty();
     }
 
     protected $fillable = [

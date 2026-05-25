@@ -19,9 +19,7 @@ class EmailMessage extends Model
     {
         return LogOptions::defaults()
             ->logOnly(['to_email', 'subject', 'status', 'direction', 'sent_at', 'scheduled_at', 'failure_reason'])
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
-            ->setDescriptionForEvent(fn (string $event) => "Email {$event}");
+            ->logOnlyDirty();
     }
 
     protected $fillable = [

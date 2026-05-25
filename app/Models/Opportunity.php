@@ -23,9 +23,7 @@ class Opportunity extends Model
     {
         return LogOptions::defaults()
             ->logOnly(['title', 'type', 'organization', 'status', 'priority', 'deadline'])
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
-            ->setDescriptionForEvent(fn (string $event) => "Opportunity {$event}");
+            ->logOnlyDirty();
     }
 
     protected $fillable = [

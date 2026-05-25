@@ -19,9 +19,7 @@ class EmailAccount extends Model
     {
         return LogOptions::defaults()
             ->logOnly(['name', 'email', 'from_name', 'smtp_host', 'smtp_port', 'imap_host', 'imap_port', 'is_active', 'is_default'])
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
-            ->setDescriptionForEvent(fn (string $event) => "Email account {$event}");
+            ->logOnlyDirty();
     }
 
     protected $fillable = [
