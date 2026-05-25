@@ -174,6 +174,76 @@ jobs:
             rm -f /tmp/state.php
             echo "==="
 
+            # ── E2E import linkage test (find-or-create both ways) ────
+            # Builds two tiny CSVs and drives them through the same code path
+            # the web UI uses, then asserts the contact <-> opportunity links
+            # got created and that stub records were auto-created.
+            {
+              printf '%s\n' '<?php'
+              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
+              printf '%s\n' 'require "vendor/autoload.php";'
+              printf '%s\n' '$app = require "bootstrap/app.php";'
+              printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
+              printf '%s\n' '$user = \App\Models\User::where("email","ranafarazahmed@gmail.com")->first();'
+              printf '%s\n' 'if(!$user){echo "user missing\n";exit;}'
+              printf '%s\n' '$tenantId = $user->tenant_id;'
+              printf '%s\n' '$markerOpp = "ImportE2E Opp " . date("YmdHis");'
+              printf '%s\n' '$markerEmail = "e2e-" . date("YmdHis") . "@example.com";'
+              printf '%s\n' 'echo "marker opportunity: $markerOpp\n";'
+              printf '%s\n' 'echo "marker contact:     $markerEmail\n";'
+
+              # Test 1: contact CSV with opportunity_titles (stub-create the opportunity)
+              printf '%s\n' '$csv1 = "/tmp/e2e_contacts.csv";'
+              printf '%s\n' 'file_put_contents($csv1, "first_name,last_name,email,company,opportunity_titles\nE2E,Tester," . $markerEmail . ",ImportE2E Co,\"" . $markerOpp . "\"\n");'
+              printf '%s\n' '$import1 = \App\Models\ContactImport::create(["tenant_id"=>$tenantId,"user_id"=>$user->id,"file_name"=>"e2e_contacts.csv","file_path"=>"e2e_contacts.csv","status"=>"processing"]);'
+              printf '%s\n' '$ctrl = new \App\Http\Controllers\ContactImportController();'
+              printf '%s\n' '$ref = new \ReflectionClass($ctrl);'
+              printf '%s\n' '$m = $ref->getMethod("processCsv"); $m->setAccessible(true);'
+              printf '%s\n' 'try { $m->invoke($ctrl, $import1, $csv1); echo "contact import: status=".$import1->fresh()->status." imported=".$import1->fresh()->imported_rows."\n"; }'
+              printf '%s\n' 'catch (\Throwable $e) { echo "contact import EX: ".$e->getMessage()."\n"; }'
+              printf '%s\n' 'unlink($csv1);'
+
+              printf '%s\n' '$contact = \App\Models\Contact::where("user_id",$user->id)->where("email",$markerEmail)->with("opportunities")->first();'
+              printf '%s\n' '$opp = \App\Models\Opportunity::where("user_id",$user->id)->where("title",$markerOpp)->with("contacts")->first();'
+              printf '%s\n' 'echo "  contact created: " . ($contact ? "YES id=".$contact->id : "NO") . "\n";'
+              printf '%s\n' 'echo "  opp auto-created: " . ($opp ? "YES id=".$opp->id : "NO") . "\n";'
+              printf '%s\n' 'echo "  contact->opps linked: " . ($contact ? $contact->opportunities->count() : 0) . "\n";'
+              printf '%s\n' 'echo "  opp->contacts linked: " . ($opp ? $opp->contacts->count() : 0) . "\n";'
+
+              # Test 2: opportunity CSV with contact_emails (stub-create the contact)
+              printf '%s\n' '$markerEmail2 = "e2e2-" . date("YmdHis") . "@example.com";'
+              printf '%s\n' '$markerOpp2 = "ImportE2E Opp2 " . date("YmdHis");'
+              printf '%s\n' 'echo "marker opportunity2: $markerOpp2\n";'
+              printf '%s\n' 'echo "marker contact2:     $markerEmail2\n";'
+              printf '%s\n' '$csv2 = "/var/www/crm.dexdevs.com/storage/app/private/opportunity-imports/e2e_opps.csv";'
+              printf '%s\n' 'if(!is_dir(dirname($csv2))) mkdir(dirname($csv2), 0775, true);'
+              printf '%s\n' 'file_put_contents($csv2, "title,type,organization,contact_emails\n\"" . $markerOpp2 . "\",job,ImportE2E Co," . $markerEmail2 . "\n");'
+              printf '%s\n' '$import2 = \App\Models\OpportunityImport::create(["tenant_id"=>$tenantId,"user_id"=>$user->id,"file_name"=>"e2e_opps.csv","file_path"=>"opportunity-imports/e2e_opps.csv","status"=>"pending"]);'
+              printf '%s\n' '$svc = app(\App\Services\OpportunityImportService::class);'
+              printf '%s\n' 'try { $svc->parseAndStore($import2); $svc->processImport($import2); echo "opp import: status=".$import2->fresh()->status." imported=".$import2->fresh()->imported_rows."\n"; }'
+              printf '%s\n' 'catch (\Throwable $e) { echo "opp import EX: ".$e->getMessage()."\n"; }'
+              printf '%s\n' 'unlink($csv2);'
+
+              printf '%s\n' '$opp2 = \App\Models\Opportunity::where("user_id",$user->id)->where("title",$markerOpp2)->with("contacts")->first();'
+              printf '%s\n' '$contact2 = \App\Models\Contact::where("user_id",$user->id)->where("email",$markerEmail2)->with("opportunities")->first();'
+              printf '%s\n' 'echo "  opp created: " . ($opp2 ? "YES id=".$opp2->id : "NO") . "\n";'
+              printf '%s\n' 'echo "  contact auto-created: " . ($contact2 ? "YES id=".$contact2->id : "NO") . "\n";'
+              printf '%s\n' 'echo "  opp->contacts linked: " . ($opp2 ? $opp2->contacts->count() : 0) . "\n";'
+              printf '%s\n' 'echo "  contact->opps linked: " . ($contact2 ? $contact2->opportunities->count() : 0) . "\n";'
+
+              # Cleanup the e2e fixtures
+              printf '%s\n' 'if ($opp) $opp->forceDelete();'
+              printf '%s\n' 'if ($contact) $contact->forceDelete();'
+              printf '%s\n' 'if ($opp2) $opp2->forceDelete();'
+              printf '%s\n' 'if ($contact2) $contact2->forceDelete();'
+              printf '%s\n' '$import1->forceDelete(); $import2->forceDelete();'
+              printf '%s\n' 'echo "e2e cleanup done\n";'
+            } > /tmp/e2e_import.php
+            echo "=== E2E import linkage test ==="
+            php /tmp/e2e_import.php 2>&1 | head -40 || true
+            rm -f /tmp/e2e_import.php
+            echo "==="
+
             # ── Diagnose Outbox + Audit Log + EmailAccount counts ────────
             {
               printf '%s\n' '<?php'

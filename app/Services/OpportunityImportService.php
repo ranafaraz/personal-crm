@@ -249,16 +249,31 @@ class OpportunityImportService
                 'notes'        => $data['notes'] ?? null ?: null,
             ]);
 
-            // Link contacts by email (semicolon or comma separated). Unknown
-            // emails are silently skipped — the row still imports successfully.
+            // Link contacts by email (semicolon or comma separated). Emails that
+            // don't match an existing contact get a stub contact created (just
+            // email + name derived from local part), so the linkage is always
+            // preserved end-to-end without manual follow-up. Email is treated
+            // as the unique key per user.
             $contactEmails = $this->parseEmails($data['contact_emails'] ?? '');
             if (! empty($contactEmails)) {
-                $contactIds = Contact::where('user_id', $import->user_id)
-                    ->whereIn('email', $contactEmails)
-                    ->pluck('id')
-                    ->all();
+                $contactIds = [];
+                foreach ($contactEmails as $email) {
+                    $contact = Contact::firstOrCreate(
+                        ['user_id' => $import->user_id, 'email' => $email],
+                        [
+                            'tenant_id'  => $import->tenant_id,
+                            'first_name' => ucfirst(strstr($email, '@', true) ?: $email),
+                            'last_name'  => '',
+                            'company'    => $data['organization'] ?? null ?: null,
+                            'source'     => 'opportunity_import',
+                            'status'     => 'active',
+                            'notes'      => 'Auto-created from opportunity CSV import (' . $import->file_name . ').',
+                        ]
+                    );
+                    $contactIds[] = $contact->id;
+                }
                 if ($contactIds) {
-                    $opportunity->contacts()->sync($contactIds);
+                    $opportunity->contacts()->syncWithoutDetaching($contactIds);
                 }
             }
 

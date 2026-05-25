@@ -64,7 +64,9 @@ class ContactImportController extends Controller
 
         $rows = [
             ['first_name','last_name','email','company','phone','job_title','industry','linkedin_url','website','city','country','source','notes','opportunity_titles'],
-            ['Jane','Doe','jane@example.com','Acme Corp','+1 555-1234','VP Engineering','SaaS','https://linkedin.com/in/janedoe','https://acme.com','San Francisco','USA','LinkedIn','Met at conference 2025','Software Engineer Role; Sr Backend at Acme'],
+            ['Jane','Doe','jane@acme.com','Acme Corp','+1 555-1234','VP Engineering','SaaS','https://linkedin.com/in/janedoe','https://acme.com','San Francisco','USA','LinkedIn','Met at conference 2025','Senior Backend Engineer @ Acme;Sr Platform Role @ Acme'],
+            ['Bob','Recruiter','recruiter@acme.com','Acme Corp','+1 555-9999','Technical Recruiter','SaaS','https://linkedin.com/in/bobrecruiter','https://acme.com','Austin','USA','Referral','Owns engineering hiring pipeline','Senior Backend Engineer @ Acme'],
+            ['Sarah','Lin','sarah@betalabs.co','Beta Labs','','CTO','AI','https://linkedin.com/in/sarahlin','https://betalabs.co','Berlin','Germany','Wellfound','Reached out re founding eng role','Founding Engineer @ Beta Labs'],
         ];
 
         $csv = implode("\n", array_map(
@@ -268,16 +270,29 @@ class ContactImportController extends Controller
 
             $contact = Contact::create($contactPayload);
 
-            // Link to opportunities by exact (case-insensitive) title match.
-            // Unknown titles are silently skipped; the contact still imports.
+            // Link to opportunities by exact title. Titles that don't match any
+            // existing opportunity get a stub opportunity created (just title +
+            // sensible defaults), so the linkage is always preserved end-to-end.
             $opportunityTitles = $this->parseList($data['opportunity_titles'] ?? '');
             if (! empty($opportunityTitles)) {
-                $opportunityIds = Opportunity::where('user_id', $import->user_id)
-                    ->whereIn('title', $opportunityTitles)
-                    ->pluck('id')
-                    ->all();
+                $opportunityIds = [];
+                foreach ($opportunityTitles as $title) {
+                    $opp = Opportunity::firstOrCreate(
+                        ['user_id' => $import->user_id, 'title' => $title],
+                        [
+                            'tenant_id'        => $import->tenant_id,
+                            'type'             => 'job',
+                            'organization'     => $contact->company ?: null,
+                            'status'           => 'active',
+                            'priority'         => 'medium',
+                            'last_activity_at' => now(),
+                            'notes'            => 'Auto-created from contact CSV import (' . $import->file_name . ').',
+                        ]
+                    );
+                    $opportunityIds[] = $opp->id;
+                }
                 if ($opportunityIds) {
-                    $contact->opportunities()->sync($opportunityIds);
+                    $contact->opportunities()->syncWithoutDetaching($opportunityIds);
                 }
             }
 

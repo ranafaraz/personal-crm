@@ -9,6 +9,7 @@
             <p class="font-semibold mb-1">CSV Format</p>
             <p>Your CSV should include columns like: <code class="font-mono bg-blue-100 px-1 rounded">title</code>, <code class="font-mono bg-blue-100 px-1 rounded">type</code>, <code class="font-mono bg-blue-100 px-1 rounded">organization</code>, <code class="font-mono bg-blue-100 px-1 rounded">status</code>, <code class="font-mono bg-blue-100 px-1 rounded">priority</code>, <code class="font-mono bg-blue-100 px-1 rounded">deadline</code></p>
             <p class="mt-1">The <code class="font-mono bg-blue-100 px-1 rounded">title</code> column is required. Column headers are auto-detected.</p>
+            <p class="mt-2"><strong>Link to contacts:</strong> add a <code class="font-mono bg-blue-100 px-1 rounded">contact_emails</code> column with one or more emails separated by <code>;</code>. Existing contacts are linked by email; any unknown email creates a stub contact (first_name from the local part, company from this opportunity's organization) and links it automatically. Email is the unique key per user.</p>
             <p class="mt-2 text-xs">Valid types: <strong>job, scholarship, research, grant, networking</strong></p>
             <p class="text-xs">Valid statuses: <strong>draft, active, waiting_reply, replied, interview, offer, rejected</strong></p>
             <p class="text-xs">Valid priorities: <strong>urgent, high, medium, low</strong></p>
