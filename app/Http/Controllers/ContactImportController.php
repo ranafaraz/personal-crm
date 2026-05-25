@@ -32,9 +32,15 @@ class ContactImportController extends Controller
         'notes'      => 'notes',      'note' => 'notes', 'comments' => 'notes', 'comment' => 'notes',
 
         // Linking: semicolon/comma separated list of opportunity titles to attach
-        'opportunity_titles'  => 'opportunity_titles',
-        'opportunities'       => 'opportunity_titles',
+        // (header normalisation collapses underscores to spaces — store both
+        // forms so direct hits + space-collapsed hits both match)
+        'opportunity_titles'   => 'opportunity_titles',
+        'opportunity titles'   => 'opportunity_titles',
+        'opportunity_title'    => 'opportunity_titles',
+        'opportunity title'    => 'opportunity_titles',
+        'opportunities'        => 'opportunity_titles',
         'linked_opportunities' => 'opportunity_titles',
+        'linked opportunities' => 'opportunity_titles',
     ];
 
     public function index(Request $request): View

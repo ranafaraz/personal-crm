@@ -58,10 +58,15 @@ class OpportunityImportService
         'comment'         => 'notes',
 
         // Linking: semicolon or comma separated list of contact emails
-        'contact_emails'  => 'contact_emails',
-        'contact_email'   => 'contact_emails',
-        'contacts'        => 'contact_emails',
-        'linked_contacts' => 'contact_emails',
+        // (header normalisation collapses underscores to spaces — store
+        // both forms so direct hits + space-collapsed hits both work)
+        'contact_emails'   => 'contact_emails',
+        'contact emails'   => 'contact_emails',
+        'contact_email'    => 'contact_emails',
+        'contact email'    => 'contact_emails',
+        'contacts'         => 'contact_emails',
+        'linked_contacts'  => 'contact_emails',
+        'linked contacts'  => 'contact_emails',
     ];
 
     private const VALID_TYPES    = ['job', 'scholarship', 'research', 'grant', 'networking'];
