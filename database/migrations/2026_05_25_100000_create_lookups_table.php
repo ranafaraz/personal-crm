@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('lookups', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('tenant_id')->nullable()->after('id')->constrained('tenants')->nullOnDelete();
+            $t->foreignId('tenant_id')->nullable()->constrained('tenants')->nullOnDelete();
             $t->string('type', 64);                 // country | industry | source | city | designation
             $t->string('value', 255);
             $t->string('slug', 255)->nullable();
