@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Contact;
+use App\Models\EmailAccount;
+use App\Models\EmailMessage;
 use App\Models\Opportunity;
 use App\Models\OpportunityImport;
 use App\Models\OpportunityImportRow;
@@ -67,6 +69,17 @@ class OpportunityImportService
         'contacts'         => 'contact_emails',
         'linked_contacts'  => 'contact_emails',
         'linked contacts'  => 'contact_emails',
+
+        // Auto-create draft + scheduled follow-up emails per linked contact
+        'draft_email'      => 'draft_email',
+        'draft email'      => 'draft_email',
+        'initial_email'    => 'draft_email',
+        'initial email'    => 'draft_email',
+
+        'followup_email'   => 'followup_email',
+        'followup email'   => 'followup_email',
+        'follow_up_email'  => 'followup_email',
+        'follow up email'  => 'followup_email',
     ];
 
     private const VALID_TYPES    = ['job', 'scholarship', 'research', 'grant', 'networking'];
@@ -260,8 +273,8 @@ class OpportunityImportService
             // preserved end-to-end without manual follow-up. Email is treated
             // as the unique key per user.
             $contactEmails = $this->parseEmails($data['contact_emails'] ?? '');
+            $contacts      = [];
             if (! empty($contactEmails)) {
-                $contactIds = [];
                 foreach ($contactEmails as $email) {
                     $contact = Contact::firstOrCreate(
                         ['user_id' => $import->user_id, 'email' => $email],
@@ -275,12 +288,17 @@ class OpportunityImportService
                             'notes'      => 'Auto-created from opportunity CSV import (' . $import->file_name . ').',
                         ]
                     );
-                    $contactIds[] = $contact->id;
+                    $contacts[] = $contact;
                 }
-                if ($contactIds) {
-                    $opportunity->contacts()->syncWithoutDetaching($contactIds);
+                if ($contacts) {
+                    $opportunity->contacts()->syncWithoutDetaching(array_map(fn ($c) => $c->id, $contacts));
                 }
             }
+
+            // Auto-create draft + scheduled follow-up EmailMessages for each
+            // linked contact when draft_email / followup_email columns are
+            // populated. Uses the user's default account (or first available).
+            $this->createImportedEmails($import, $opportunity, $contacts, $data);
 
             $row->update([
                 'status'         => 'imported',
@@ -333,6 +351,82 @@ class OpportunityImportService
             }
         }
         return array_keys($emails);
+    }
+
+    /**
+     * For each linked contact, optionally create a draft EmailMessage from the
+     * draft_email column and a scheduled (status=scheduled, ~5 days out)
+     * EmailMessage from the followup_email column. No-op when the columns are
+     * blank, when no contacts are linked, or when the user has no email account.
+     *
+     * @param  array<int, Contact>  $contacts
+     */
+    private function createImportedEmails(OpportunityImport $import, Opportunity $opportunity, array $contacts, array $data): void
+    {
+        $draftBody    = trim((string) ($data['draft_email'] ?? ''));
+        $followupBody = trim((string) ($data['followup_email'] ?? ''));
+
+        if ($draftBody === '' && $followupBody === '') return;
+        if (empty($contacts)) return;
+
+        $account = EmailAccount::where('user_id', $import->user_id)
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->where('is_default', true)->orWhereNotNull('id');
+            })
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first();
+
+        if (! $account) return;
+
+        foreach ($contacts as $contact) {
+            $toName = trim(($contact->first_name ?? '') . ' ' . ($contact->last_name ?? '')) ?: $contact->email;
+
+            if ($draftBody !== '') {
+                EmailMessage::create([
+                    'tenant_id'        => $import->tenant_id,
+                    'user_id'          => $import->user_id,
+                    'email_account_id' => $account->id,
+                    'contact_id'       => $contact->id,
+                    'opportunity_id'   => $opportunity->id,
+                    'to_email'         => $contact->email,
+                    'to_name'          => $toName,
+                    'subject'          => 'Outreach: ' . $opportunity->title,
+                    'body'             => $this->bodyToHtml($draftBody),
+                    'direction'        => 'outbound',
+                    'status'           => 'draft',
+                ]);
+            }
+
+            if ($followupBody !== '') {
+                EmailMessage::create([
+                    'tenant_id'        => $import->tenant_id,
+                    'user_id'          => $import->user_id,
+                    'email_account_id' => $account->id,
+                    'contact_id'       => $contact->id,
+                    'opportunity_id'   => $opportunity->id,
+                    'to_email'         => $contact->email,
+                    'to_name'          => $toName,
+                    'subject'          => 'Following up: ' . $opportunity->title,
+                    'body'             => $this->bodyToHtml($followupBody),
+                    'direction'        => 'outbound',
+                    'status'           => 'scheduled',
+                    'scheduled_at'     => now()->addDays(5),
+                    'is_follow_up'     => true,
+                    'follow_up_number' => 1,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Convert plain-text body (CSV cell) into the HTML the rest of the app expects.
+     * Escapes HTML special chars then converts newlines to <br>.
+     */
+    private function bodyToHtml(string $raw): string
+    {
+        return nl2br(e($raw), false);
     }
 
     private function resolveDate(?string $value): ?string

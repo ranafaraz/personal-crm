@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Contact;
 use App\Models\ContactImport;
 use App\Models\ContactImportRow;
+use App\Models\EmailAccount;
+use App\Models\EmailMessage;
 use App\Models\Opportunity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,6 +43,17 @@ class ContactImportController extends Controller
         'opportunities'        => 'opportunity_titles',
         'linked_opportunities' => 'opportunity_titles',
         'linked opportunities' => 'opportunity_titles',
+
+        // Auto-create draft + scheduled follow-up emails for this contact
+        'draft_email'          => 'draft_email',
+        'draft email'          => 'draft_email',
+        'initial_email'        => 'draft_email',
+        'initial email'        => 'draft_email',
+
+        'followup_email'       => 'followup_email',
+        'followup email'       => 'followup_email',
+        'follow_up_email'      => 'followup_email',
+        'follow up email'      => 'followup_email',
     ];
 
     public function index(Request $request): View
@@ -69,10 +82,22 @@ class ContactImportController extends Controller
         ];
 
         $rows = [
-            ['first_name','last_name','email','company','phone','job_title','industry','linkedin_url','website','city','country','source','notes','opportunity_titles'],
-            ['Jane','Doe','jane@acme.com','Acme Corp','+1 555-1234','VP Engineering','SaaS','https://linkedin.com/in/janedoe','https://acme.com','San Francisco','USA','LinkedIn','Met at conference 2025','Senior Backend Engineer @ Acme;Sr Platform Role @ Acme'],
-            ['Bob','Recruiter','recruiter@acme.com','Acme Corp','+1 555-9999','Technical Recruiter','SaaS','https://linkedin.com/in/bobrecruiter','https://acme.com','Austin','USA','Referral','Owns engineering hiring pipeline','Senior Backend Engineer @ Acme'],
-            ['Sarah','Lin','sarah@betalabs.co','Beta Labs','','CTO','AI','https://linkedin.com/in/sarahlin','https://betalabs.co','Berlin','Germany','Wellfound','Reached out re founding eng role','Founding Engineer @ Beta Labs'],
+            ['first_name','last_name','email','company','phone','job_title','industry','linkedin_url','website','city','country','source','notes','opportunity_titles','draft_email','followup_email'],
+            [
+                'Jane','Doe','jane@acme.com','Acme Corp','+1 555-1234','VP Engineering','SaaS','https://linkedin.com/in/janedoe','https://acme.com','San Francisco','USA','LinkedIn','Met at conference 2025','Senior Backend Engineer @ Acme;Sr Platform Role @ Acme',
+                "Hi Jane,\n\nGreat meeting you at the conference. I'd love to follow up on the platform role we discussed.\n\nBest,\nRana",
+                "Hi Jane,\n\nFollowing up on my last note — let me know if there's a good time to catch up.\n\nBest,\nRana",
+            ],
+            [
+                'Bob','Recruiter','recruiter@acme.com','Acme Corp','+1 555-9999','Technical Recruiter','SaaS','https://linkedin.com/in/bobrecruiter','https://acme.com','Austin','USA','Referral','Owns engineering hiring pipeline','Senior Backend Engineer @ Acme',
+                "Hi Bob,\n\nJane suggested I reach out to you about the senior backend role. Attached my CV.\n\nBest,\nRana",
+                '',
+            ],
+            [
+                'Sarah','Lin','sarah@betalabs.co','Beta Labs','','CTO','AI','https://linkedin.com/in/sarahlin','https://betalabs.co','Berlin','Germany','Wellfound','Reached out re founding eng role','Founding Engineer @ Beta Labs',
+                '',
+                '',
+            ],
         ];
 
         $csv = implode("\n", array_map(
@@ -280,8 +305,8 @@ class ContactImportController extends Controller
             // existing opportunity get a stub opportunity created (just title +
             // sensible defaults), so the linkage is always preserved end-to-end.
             $opportunityTitles = $this->parseList($data['opportunity_titles'] ?? '');
+            $opportunities     = [];
             if (! empty($opportunityTitles)) {
-                $opportunityIds = [];
                 foreach ($opportunityTitles as $title) {
                     $opp = Opportunity::firstOrCreate(
                         ['user_id' => $import->user_id, 'title' => $title],
@@ -295,12 +320,17 @@ class ContactImportController extends Controller
                             'notes'            => 'Auto-created from contact CSV import (' . $import->file_name . ').',
                         ]
                     );
-                    $opportunityIds[] = $opp->id;
+                    $opportunities[] = $opp;
                 }
-                if ($opportunityIds) {
-                    $contact->opportunities()->syncWithoutDetaching($opportunityIds);
+                if ($opportunities) {
+                    $contact->opportunities()->syncWithoutDetaching(array_map(fn ($o) => $o->id, $opportunities));
                 }
             }
+
+            // Auto-create draft + scheduled follow-up EmailMessages addressed
+            // to this contact when the draft_email / followup_email columns
+            // are populated. Links to the first opportunity (if any).
+            $this->createImportedEmails($import, $contact, $opportunities[0] ?? null, $data);
 
             $row->update([
                 'status'     => 'imported',
@@ -314,6 +344,65 @@ class ContactImportController extends Controller
                 'error_message' => $e->getMessage(),
             ]);
             return 'failed';
+        }
+    }
+
+    /**
+     * Create a draft EmailMessage from draft_email and a scheduled (status=
+     * scheduled, ~5 days out) EmailMessage from followup_email. No-op when
+     * both columns are blank or the user has no email account.
+     */
+    private function createImportedEmails(ContactImport $import, Contact $contact, ?Opportunity $opportunity, array $data): void
+    {
+        $draftBody    = trim((string) ($data['draft_email'] ?? ''));
+        $followupBody = trim((string) ($data['followup_email'] ?? ''));
+
+        if ($draftBody === '' && $followupBody === '') return;
+
+        $account = EmailAccount::where('user_id', $import->user_id)
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first();
+
+        if (! $account) return;
+
+        $toName    = trim(($contact->first_name ?? '') . ' ' . ($contact->last_name ?? '')) ?: $contact->email;
+        $subjectBase = $opportunity?->title ?: ('Outreach to ' . $toName);
+
+        if ($draftBody !== '') {
+            EmailMessage::create([
+                'tenant_id'        => $import->tenant_id,
+                'user_id'          => $import->user_id,
+                'email_account_id' => $account->id,
+                'contact_id'       => $contact->id,
+                'opportunity_id'   => $opportunity?->id,
+                'to_email'         => $contact->email,
+                'to_name'          => $toName,
+                'subject'          => 'Outreach: ' . $subjectBase,
+                'body'             => nl2br(e($draftBody), false),
+                'direction'        => 'outbound',
+                'status'           => 'draft',
+            ]);
+        }
+
+        if ($followupBody !== '') {
+            EmailMessage::create([
+                'tenant_id'        => $import->tenant_id,
+                'user_id'          => $import->user_id,
+                'email_account_id' => $account->id,
+                'contact_id'       => $contact->id,
+                'opportunity_id'   => $opportunity?->id,
+                'to_email'         => $contact->email,
+                'to_name'          => $toName,
+                'subject'          => 'Following up: ' . $subjectBase,
+                'body'             => nl2br(e($followupBody), false),
+                'direction'        => 'outbound',
+                'status'           => 'scheduled',
+                'scheduled_at'     => now()->addDays(5),
+                'is_follow_up'     => true,
+                'follow_up_number' => 1,
+            ]);
         }
     }
 

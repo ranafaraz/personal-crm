@@ -192,9 +192,9 @@ jobs:
               printf '%s\n' 'echo "marker opportunity: $markerOpp\n";'
               printf '%s\n' 'echo "marker contact:     $markerEmail\n";'
 
-              # Test 1: contact CSV with opportunity_titles (stub-create the opportunity)
+              # Test 1: contact CSV with opportunity_titles + draft_email + followup_email
               printf '%s\n' '$csv1 = "/tmp/e2e_contacts.csv";'
-              printf '%s\n' 'file_put_contents($csv1, "first_name,last_name,email,company,opportunity_titles\nE2E,Tester," . $markerEmail . ",ImportE2E Co,\"" . $markerOpp . "\"\n");'
+              printf '%s\n' 'file_put_contents($csv1, "first_name,last_name,email,company,opportunity_titles,draft_email,followup_email\nE2E,Tester," . $markerEmail . ",ImportE2E Co,\"" . $markerOpp . "\",\"Hi E2E - first outreach\",\"Hi E2E - just following up\"\n");'
               printf '%s\n' '$import1 = \App\Models\ContactImport::create(["tenant_id"=>$tenantId,"user_id"=>$user->id,"file_name"=>"e2e_contacts.csv","file_path"=>"e2e_contacts.csv","status"=>"processing"]);'
               printf '%s\n' '$ctrl = new \App\Http\Controllers\ContactImportController();'
               printf '%s\n' '$ref = new \ReflectionClass($ctrl);'
@@ -209,15 +209,18 @@ jobs:
               printf '%s\n' 'echo "  opp auto-created: " . ($opp ? "YES id=".$opp->id : "NO") . "\n";'
               printf '%s\n' 'echo "  contact->opps linked: " . ($contact ? $contact->opportunities->count() : 0) . "\n";'
               printf '%s\n' 'echo "  opp->contacts linked: " . ($opp ? $opp->contacts->count() : 0) . "\n";'
+              printf '%s\n' '$msgs1 = $contact ? \App\Models\EmailMessage::where("contact_id",$contact->id)->get(["id","status","subject","scheduled_at"]) : collect();'
+              printf '%s\n' 'echo "  draft+scheduled msgs from contact import: ".$msgs1->count()."\n";'
+              printf '%s\n' 'foreach ($msgs1 as $m) echo "    msg #".$m->id." status=".$m->status." subject=".$m->subject." scheduled_at=".($m->scheduled_at??"-")."\n";'
 
-              # Test 2: opportunity CSV with contact_emails (stub-create the contact)
+              # Test 2: opportunity CSV with contact_emails + draft_email + followup_email
               printf '%s\n' '$markerEmail2 = "e2e2-" . date("YmdHis") . "@example.com";'
               printf '%s\n' '$markerOpp2 = "ImportE2E Opp2 " . date("YmdHis");'
               printf '%s\n' 'echo "marker opportunity2: $markerOpp2\n";'
               printf '%s\n' 'echo "marker contact2:     $markerEmail2\n";'
               printf '%s\n' '$csv2 = "/var/www/crm.dexdevs.com/storage/app/private/opportunity-imports/e2e_opps.csv";'
               printf '%s\n' 'if(!is_dir(dirname($csv2))) mkdir(dirname($csv2), 0775, true);'
-              printf '%s\n' 'file_put_contents($csv2, "title,type,organization,contact_emails\n\"" . $markerOpp2 . "\",job,ImportE2E Co," . $markerEmail2 . "\n");'
+              printf '%s\n' 'file_put_contents($csv2, "title,type,organization,contact_emails,draft_email,followup_email\n\"" . $markerOpp2 . "\",job,ImportE2E Co," . $markerEmail2 . ",\"Hi from opp - first outreach\",\"Hi from opp - bumping this\"\n");'
               printf '%s\n' '$import2 = \App\Models\OpportunityImport::create(["tenant_id"=>$tenantId,"user_id"=>$user->id,"file_name"=>"e2e_opps.csv","file_path"=>"opportunity-imports/e2e_opps.csv","status"=>"pending"]);'
               printf '%s\n' '$svc = app(\App\Services\OpportunityImportService::class);'
               printf '%s\n' 'try { $svc->parseAndStore($import2); $svc->processImport($import2); echo "opp import: status=".$import2->fresh()->status." imported=".$import2->fresh()->imported_rows."\n"; }'
@@ -230,8 +233,12 @@ jobs:
               printf '%s\n' 'echo "  contact auto-created: " . ($contact2 ? "YES id=".$contact2->id : "NO") . "\n";'
               printf '%s\n' 'echo "  opp->contacts linked: " . ($opp2 ? $opp2->contacts->count() : 0) . "\n";'
               printf '%s\n' 'echo "  contact->opps linked: " . ($contact2 ? $contact2->opportunities->count() : 0) . "\n";'
+              printf '%s\n' '$msgs2 = $contact2 ? \App\Models\EmailMessage::where("contact_id",$contact2->id)->get(["id","status","subject","scheduled_at"]) : collect();'
+              printf '%s\n' 'echo "  draft+scheduled msgs from opp import: ".$msgs2->count()."\n";'
+              printf '%s\n' 'foreach ($msgs2 as $m) echo "    msg #".$m->id." status=".$m->status." subject=".$m->subject." scheduled_at=".($m->scheduled_at??"-")."\n";'
 
-              # Cleanup the e2e fixtures
+              # Cleanup the e2e fixtures (messages first to satisfy FK constraints)
+              printf '%s\n' '\App\Models\EmailMessage::whereIn("contact_id", array_filter([$contact?->id, $contact2?->id]))->delete();'
               printf '%s\n' 'if ($opp) $opp->forceDelete();'
               printf '%s\n' 'if ($contact) $contact->forceDelete();'
               printf '%s\n' 'if ($opp2) $opp2->forceDelete();'
