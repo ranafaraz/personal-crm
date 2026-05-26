@@ -246,9 +246,8 @@ function composeForm(contactsList, signatureList, initialSignatureId) {
         sendOption: 'now',
         init() {
             // Bootstrap Quill on the placeholder div. The CDN script tag lives
-            // in @push('scripts') so it may not have parsed by the time Alpine
+            // in the scripts stack so it may not have parsed by the time Alpine
             // init() fires — poll briefly until window.Quill is defined.
-            const self = this;
             const bootQuill = function () {
                 if (typeof window.Quill === 'undefined') {
                     setTimeout(bootQuill, 50);
