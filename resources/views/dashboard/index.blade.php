@@ -386,7 +386,8 @@
         <div class="divide-y divide-slate-100">
             @forelse($upcomingDeadlines ?? [] as $opp)
                 @php
-                    $daysLeft = now()->diffInDays($opp->deadline, false);
+                    // Carbon's diffInDays returns a float — floor it to an integer day count.
+                    $daysLeft  = (int) floor(now()->startOfDay()->diffInDays(\Carbon\Carbon::parse($opp->deadline)->startOfDay(), false));
                     $daysColor = $daysLeft < 7 ? 'text-red-600 font-bold' : ($daysLeft < 14 ? 'text-yellow-600 font-semibold' : 'text-slate-500');
                     $typeColors = ['job'=>'bg-blue-100 text-blue-700','scholarship'=>'bg-purple-100 text-purple-700','research'=>'bg-indigo-100 text-indigo-700','grant'=>'bg-yellow-100 text-yellow-700','networking'=>'bg-green-100 text-green-700'];
                     $tc = $typeColors[$opp->type] ?? 'bg-slate-100 text-slate-700';

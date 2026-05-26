@@ -58,6 +58,8 @@
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-slate-200 bg-slate-50">
+                    <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-12">#</th>
+                    <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">ID</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Title</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Organization</th>
@@ -99,6 +101,8 @@
                         $isOverdue = $opp->deadline && $opp->deadline->isPast() && !in_array($opp->status, ['offer', 'rejected']);
                     @endphp
                     <tr class="hover:bg-slate-50 cursor-pointer {{ $isOverdue ? 'bg-red-50' : '' }}" onclick="window.location='{{ route('opportunities.show', $opp) }}'">
+                        <td class="px-4 py-3.5 text-xs text-slate-400">{{ ($opportunities->currentPage() - 1) * $opportunities->perPage() + $loop->iteration }}</td>
+                        <td class="px-4 py-3.5 text-xs font-mono text-slate-500">#{{ $opp->id }}</td>
                         <td class="px-5 py-3.5 font-medium text-slate-800 max-w-xs">
                             <span class="truncate block">{{ $opp->title }}</span>
                         </td>
@@ -131,7 +135,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="px-5 py-12 text-center">
+                        <td colspan="10" class="px-5 py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                                 <p class="text-slate-500 text-sm font-medium">No opportunities found</p>

@@ -35,6 +35,8 @@
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-slate-200 bg-slate-50">
+                    <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-12">#</th>
+                    <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">ID</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Name</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Company</th>
@@ -55,6 +57,8 @@
                         };
                     @endphp
                     <tr class="hover:bg-slate-50 cursor-pointer" onclick="window.location='{{ route('contacts.show', $contact) }}'">
+                        <td class="px-4 py-3.5 text-xs text-slate-400">{{ ($contacts->currentPage() - 1) * $contacts->perPage() + $loop->iteration }}</td>
+                        <td class="px-4 py-3.5 text-xs font-mono text-slate-500">#{{ $contact->id }}</td>
                         <td class="px-5 py-3.5">
                             <div class="flex items-center gap-2.5">
                                 <div class="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center text-xs font-bold text-indigo-700 flex-shrink-0">
@@ -86,7 +90,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="px-5 py-12 text-center">
+                        <td colspan="9" class="px-5 py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                                 <p class="text-slate-500 text-sm font-medium">No contacts found</p>

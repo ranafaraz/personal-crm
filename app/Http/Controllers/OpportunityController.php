@@ -37,7 +37,16 @@ class OpportunityController extends Controller
             $query->where('priority', $priority);
         }
 
-        $opportunities = $query->orderByDesc('updated_at')->paginate(25)->withQueryString();
+        // Default sort: priority (urgent → low) → soonest deadline → most recent.
+        // FIELD() works on MySQL/MariaDB; ordinal lookup keeps undefined
+        // priority values at the end of the bucket.
+        $opportunities = $query
+            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'medium', 'low', '') ASC")
+            ->orderByRaw('CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC')
+            ->orderBy('deadline', 'asc')
+            ->orderByDesc('updated_at')
+            ->paginate(25)
+            ->withQueryString();
 
         return view('opportunities.index', compact('opportunities'));
     }

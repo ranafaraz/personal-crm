@@ -131,7 +131,7 @@
             {{-- Subject --}}
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Subject <span class="text-red-500">*</span></label>
-                <input id="subject" type="text" name="subject" x-model="subject" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Email subject...">
+                <input id="compose-subject" type="text" name="subject" x-model="subject" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Email subject...">
             </div>
 
             {{-- Body (Quill rich text editor; hidden input is what posts) --}}
@@ -245,36 +245,63 @@ function composeForm(contactsList, signatureList, initialSignatureId) {
         toName: @json(old('to_name', '')),
         sendOption: 'now',
         init() {
-            // Bootstrap Quill on the placeholder div and seed it with any old() body
-            composeQuill = new Quill('#composeEditor', {
-                theme: 'snow',
-                placeholder: 'Write your email here...',
-                modules: {
-                    toolbar: [
-                        [{ header: [1, 2, 3, false] }],
-                        ['bold', 'italic', 'underline', 'strike'],
-                        [{ color: [] }, { background: [] }],
-                        [{ list: 'ordered' }, { list: 'bullet' }],
-                        ['blockquote', 'code-block', 'link'],
-                        [{ align: [] }],
-                        ['clean'],
-                    ],
-                },
-            });
-            const oldBody = document.getElementById('composeBody').value;
-            if (oldBody) {
-                composeQuill.clipboard.dangerouslyPasteHTML(oldBody);
-            }
-            // If contact was already selected via query string, populate To
-            if (this.contactId) {
-                this.onContactSelected();
-            }
+            // Bootstrap Quill on the placeholder div. The CDN script tag lives
+            // in @push('scripts') so it may not have parsed by the time Alpine
+            // init() fires — poll briefly until window.Quill is defined.
+            const self = this;
+            const bootQuill = function () {
+                if (typeof window.Quill === 'undefined') {
+                    setTimeout(bootQuill, 50);
+                    return;
+                }
+                try {
+                    composeQuill = new window.Quill('#composeEditor', {
+                        theme: 'snow',
+                        placeholder: 'Write your email here...',
+                        modules: {
+                            toolbar: [
+                                [{ header: [1, 2, 3, false] }],
+                                ['bold', 'italic', 'underline', 'strike'],
+                                [{ color: [] }, { background: [] }],
+                                [{ list: 'ordered' }, { list: 'bullet' }],
+                                ['blockquote', 'code-block', 'link'],
+                                [{ align: [] }],
+                                ['clean'],
+                            ],
+                        },
+                    });
+                    const oldBody = document.getElementById('composeBody').value;
+                    if (oldBody) {
+                        composeQuill.clipboard.dangerouslyPasteHTML(oldBody);
+                    }
+                } catch (e) {
+                    console.error('Quill init failed:', e);
+                    // Fall back to a plain textarea so users can still type
+                    const placeholder = document.getElementById('composeEditor');
+                    const body = document.getElementById('composeBody');
+                    if (placeholder) placeholder.style.display = 'none';
+                    if (body) {
+                        body.classList.remove('hidden');
+                        body.classList.add('w-full', 'px-3', 'py-2', 'border', 'border-slate-300', 'rounded-lg', 'text-sm', 'min-h-[280px]');
+                    }
+                }
+            };
+            bootQuill();
+            if (this.contactId) this.onContactSelected();
         },
         syncBody() {
-            // Right before form submit, copy Quill's HTML into the hidden textarea
-            const editorHtml = composeQuill.root.innerHTML === '<p><br></p>' ? '' : composeQuill.root.innerHTML;
-            const signatureHtml = this.signatureId && this.signatures[this.signatureId] ? this.signatures[this.signatureId].html : '';
-            document.getElementById('composeBody').value = editorHtml + signatureHtml;
+            // Right before form submit, copy Quill's HTML into the hidden textarea.
+            // If Quill never initialised, the textarea already holds what the
+            // fallback editor captured — leave it alone.
+            const bodyEl = document.getElementById('composeBody');
+            let editorHtml = bodyEl.value || '';
+            if (composeQuill && composeQuill.root) {
+                editorHtml = composeQuill.root.innerHTML === '<p><br></p>' ? '' : composeQuill.root.innerHTML;
+            }
+            const signatureHtml = this.signatureId && this.signatures && this.signatures[this.signatureId]
+                ? this.signatures[this.signatureId].html
+                : '';
+            bodyEl.value = editorHtml + signatureHtml;
         },
         onContactSelected() {
             if (!this.contactId) return;

@@ -131,7 +131,7 @@
             {{-- Subject --}}
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Subject <span class="text-red-500">*</span></label>
-                <input id="subject" type="text" name="subject" x-model="subject" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Email subject...">
+                <input id="compose-subject" type="text" name="subject" x-model="subject" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Email subject...">
             </div>
 
             {{-- Body --}}
@@ -231,30 +231,54 @@ function composeForm(contactsList, signatureList, initialSignatureId) {
         toName: @json(old('to_name', $email->to_name ?? '')),
         sendOption: '{{ $email->status === 'scheduled' ? 'schedule' : 'draft' }}',
         init() {
-            composeQuill = new Quill('#composeEditor', {
-                theme: 'snow',
-                placeholder: 'Write your email here...',
-                modules: {
-                    toolbar: [
-                        [{ header: [1, 2, 3, false] }],
-                        ['bold', 'italic', 'underline', 'strike'],
-                        [{ color: [] }, { background: [] }],
-                        [{ list: 'ordered' }, { list: 'bullet' }],
-                        ['blockquote', 'code-block', 'link'],
-                        [{ align: [] }],
-                        ['clean'],
-                    ],
-                },
-            });
-            const existing = document.getElementById('composeBody').value;
-            if (existing) {
-                composeQuill.clipboard.dangerouslyPasteHTML(existing);
-            }
+            // Poll until Quill is parsed (CDN script may not be ready when
+            // Alpine init runs). Fall back to a plain textarea on hard failure.
+            const bootQuill = () => {
+                if (typeof window.Quill === 'undefined') {
+                    setTimeout(bootQuill, 50);
+                    return;
+                }
+                try {
+                    composeQuill = new window.Quill('#composeEditor', {
+                        theme: 'snow',
+                        placeholder: 'Write your email here...',
+                        modules: {
+                            toolbar: [
+                                [{ header: [1, 2, 3, false] }],
+                                ['bold', 'italic', 'underline', 'strike'],
+                                [{ color: [] }, { background: [] }],
+                                [{ list: 'ordered' }, { list: 'bullet' }],
+                                ['blockquote', 'code-block', 'link'],
+                                [{ align: [] }],
+                                ['clean'],
+                            ],
+                        },
+                    });
+                    const existing = document.getElementById('composeBody').value;
+                    if (existing) composeQuill.clipboard.dangerouslyPasteHTML(existing);
+                } catch (e) {
+                    console.error('Quill init failed:', e);
+                    const placeholder = document.getElementById('composeEditor');
+                    const body = document.getElementById('composeBody');
+                    if (placeholder) placeholder.style.display = 'none';
+                    if (body) {
+                        body.classList.remove('hidden');
+                        body.classList.add('w-full', 'px-3', 'py-2', 'border', 'border-slate-300', 'rounded-lg', 'text-sm', 'min-h-[280px]');
+                    }
+                }
+            };
+            bootQuill();
         },
         syncBody() {
-            const editorHtml = composeQuill.root.innerHTML === '<p><br></p>' ? '' : composeQuill.root.innerHTML;
-            const signatureHtml = this.signatureId && this.signatures[this.signatureId] ? this.signatures[this.signatureId].html : '';
-            document.getElementById('composeBody').value = editorHtml + signatureHtml;
+            const bodyEl = document.getElementById('composeBody');
+            let editorHtml = bodyEl.value || '';
+            if (composeQuill && composeQuill.root) {
+                editorHtml = composeQuill.root.innerHTML === '<p><br></p>' ? '' : composeQuill.root.innerHTML;
+            }
+            const signatureHtml = this.signatureId && this.signatures && this.signatures[this.signatureId]
+                ? this.signatures[this.signatureId].html
+                : '';
+            bodyEl.value = editorHtml + signatureHtml;
         },
         onContactSelected() {
             if (!this.contactId) return;
