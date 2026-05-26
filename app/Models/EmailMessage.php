@@ -29,6 +29,7 @@ class EmailMessage extends Model
         'contact_id',
         'opportunity_id',
         'template_id',
+        'email_signature_id',
         'message_id',
         'subject',
         'body',
@@ -89,6 +90,11 @@ class EmailMessage extends Model
     public function template(): BelongsTo
     {
         return $this->belongsTo(EmailTemplate::class, 'template_id');
+    }
+
+    public function emailSignature(): BelongsTo
+    {
+        return $this->belongsTo(EmailSignature::class);
     }
 
     public function attachments(): HasMany

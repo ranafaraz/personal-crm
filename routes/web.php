@@ -13,6 +13,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EmailAccountController;
 use App\Http\Controllers\EmailMessageController;
+use App\Http\Controllers\EmailSignatureController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\FollowUpController;
 use App\Http\Controllers\InboxMessageController;
@@ -87,6 +88,13 @@ Route::middleware('auth')->group(function () {
     Route::resource('email-templates', EmailTemplateController::class);
     Route::post('email-templates/{id}/duplicate', [EmailTemplateController::class, 'duplicate'])
         ->name('email-templates.duplicate');
+
+    // ---------------------------------------------------------------------------
+    // Email Signatures
+    // ---------------------------------------------------------------------------
+    Route::post('email-signatures/{id}/set-default', [EmailSignatureController::class, 'setDefault'])
+        ->name('email-signatures.set-default');
+    Route::resource('email-signatures', EmailSignatureController::class)->except(['show']);
 
     // ---------------------------------------------------------------------------
     // Email Messages (Compose / Outbox)

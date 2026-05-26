@@ -75,6 +75,11 @@ class User extends Authenticatable
         return $this->hasMany(EmailMessage::class);
     }
 
+    public function emailSignatures(): HasMany
+    {
+        return $this->hasMany(EmailSignature::class);
+    }
+
     public function tags(): HasMany
     {
         return $this->hasMany(Tag::class);

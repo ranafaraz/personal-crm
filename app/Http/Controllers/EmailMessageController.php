@@ -6,6 +6,7 @@ use App\Http\Requests\StoreEmailMessageRequest;
 use App\Models\Contact;
 use App\Models\EmailAccount;
 use App\Models\EmailMessage;
+use App\Models\EmailSignature;
 use App\Models\EmailTemplate;
 use App\Models\Opportunity;
 use App\Services\EmailSendingService;
@@ -67,7 +68,17 @@ class EmailMessageController extends Controller
             ->orderByDesc('updated_at')
             ->get(['id', 'title']);
 
-        return view('emails.compose', compact('emailAccounts', 'templates', 'contacts', 'opportunities'));
+        [$signatures, $defaultSignatureId, $signaturePayload] = $this->signatureOptions();
+
+        return view('emails.compose', compact(
+            'emailAccounts',
+            'templates',
+            'contacts',
+            'opportunities',
+            'signatures',
+            'defaultSignatureId',
+            'signaturePayload'
+        ));
     }
 
     public function store(StoreEmailMessageRequest $request, EmailSendingService $emailService): RedirectResponse
@@ -88,6 +99,7 @@ class EmailMessageController extends Controller
             'contact_id'       => $data['contact_id'] ?? null,
             'opportunity_id'   => $data['opportunity_id'] ?? null,
             'template_id'      => $data['template_id'] ?? null,
+            'email_signature_id' => $this->validatedSignatureId($data['email_signature_id'] ?? null),
             'to_email'         => $data['to_email'],
             'to_name'          => $data['to_name'] ?? null,
             'subject'          => $data['subject'],
@@ -316,7 +328,18 @@ class EmailMessageController extends Controller
             ->orderByDesc('updated_at')
             ->get(['id', 'title']);
 
-        return view('emails.edit', compact('email', 'emailAccounts', 'templates', 'contacts', 'opportunities'));
+        [$signatures, $defaultSignatureId, $signaturePayload] = $this->signatureOptions();
+
+        return view('emails.edit', compact(
+            'email',
+            'emailAccounts',
+            'templates',
+            'contacts',
+            'opportunities',
+            'signatures',
+            'defaultSignatureId',
+            'signaturePayload'
+        ));
     }
 
     public function update(StoreEmailMessageRequest $request, EmailSendingService $emailService, int $id): RedirectResponse
@@ -342,6 +365,7 @@ class EmailMessageController extends Controller
             'contact_id'       => $data['contact_id'] ?? null,
             'opportunity_id'   => $data['opportunity_id'] ?? null,
             'template_id'      => $data['template_id'] ?? null,
+            'email_signature_id' => $this->validatedSignatureId($data['email_signature_id'] ?? null),
             'to_email'         => $data['to_email'],
             'to_name'          => $data['to_name'] ?? null,
             'subject'          => $data['subject'],
@@ -406,5 +430,34 @@ class EmailMessageController extends Controller
             'subject' => $template->subject,
             'body'    => $template->body,
         ]);
+    }
+
+    private function signatureOptions(): array
+    {
+        $signatures = $this->tenantQuery(EmailSignature::class)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+
+        $defaultSignatureId = optional($signatures->firstWhere('is_default', true) ?? $signatures->first())->id;
+        $signaturePayload = $signatures
+            ->mapWithKeys(fn (EmailSignature $signature) => [
+                (string) $signature->id => [
+                    'name' => $signature->name,
+                    'html' => $signature->renderHtml(),
+                ],
+            ])
+            ->all();
+
+        return [$signatures, $defaultSignatureId, $signaturePayload];
+    }
+
+    private function validatedSignatureId(mixed $signatureId): ?int
+    {
+        if (! $signatureId) {
+            return null;
+        }
+
+        return $this->tenantQuery(EmailSignature::class)->findOrFail((int) $signatureId)->id;
     }
 }

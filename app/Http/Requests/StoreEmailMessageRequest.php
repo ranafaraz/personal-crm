@@ -36,6 +36,7 @@ class StoreEmailMessageRequest extends FormRequest
             'contact_id'       => 'nullable|integer|exists:contacts,id',
             'opportunity_id'   => 'nullable|integer|exists:opportunities,id',
             'template_id'      => 'nullable|integer|exists:email_templates,id',
+            'email_signature_id' => 'nullable|integer|exists:email_signatures,id',
             'cc'               => 'nullable|array',
             'cc.*'             => 'email',
             'bcc'              => 'nullable|array',

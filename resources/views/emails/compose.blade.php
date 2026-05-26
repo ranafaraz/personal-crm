@@ -22,9 +22,11 @@
     $defaultAccountId = old('email_account_id')
         ?: request('account_id')
         ?: optional($emailAccounts->firstWhere('is_default', true))->id;
+    $selectedSignatureId = old('email_signature_id', $defaultSignatureId);
+    $editorBody = \App\Models\EmailSignature::stripSignatureHtml(old('body', ''));
 @endphp
 
-<div class="max-w-3xl" x-data="composeForm({{ $contactRecords->toJson() }})">
+<div class="max-w-3xl" x-data="composeForm({{ $contactRecords->toJson() }}, @json($signaturePayload), @json((string) $selectedSignatureId))">
     <div class="bg-white border border-slate-200 rounded-xl p-6">
         <form method="POST" action="{{ route('emails.store') }}" enctype="multipart/form-data" class="space-y-4" @submit="syncBody">
             @csrf
@@ -103,6 +105,29 @@
                 <p class="text-xs text-slate-400 mt-1">Loading a template overwrites the subject and body.</p>
             </div>
 
+            {{-- Signature --}}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Signature</label>
+                <select name="email_signature_id" x-model="signatureId" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    @if($signatures->isEmpty())
+                        <option value="">No signatures available</option>
+                    @else
+                        <option value="">No signature</option>
+                        @foreach($signatures as $signature)
+                            <option value="{{ $signature->id }}">
+                                {{ $signature->name }}@if($signature->is_default) — default @endif
+                            </option>
+                        @endforeach
+                    @endif
+                </select>
+                @if($signatures->isEmpty())
+                    <p class="text-xs text-slate-400 mt-1"><a href="{{ route('email-signatures.create') }}" class="text-indigo-600 hover:underline">Create a signature</a> to insert it automatically while composing.</p>
+                @endif
+                <div x-show="signatureId && signatures[signatureId]" x-cloak class="mt-3 border border-slate-200 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                    <div x-html="signatures[signatureId] ? signatures[signatureId].html : ''"></div>
+                </div>
+            </div>
+
             {{-- Subject --}}
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Subject <span class="text-red-500">*</span></label>
@@ -113,7 +138,7 @@
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Body <span class="text-red-500">*</span></label>
                 <div id="composeEditor"></div>
-                <textarea name="body" id="composeBody" class="hidden" required>{{ old('body') }}</textarea>
+                <textarea name="body" id="composeBody" class="hidden" required>{{ $editorBody }}</textarea>
             </div>
 
             {{-- CC / BCC (multi-select chip pickers; suggests contacts + accepts free emails) --}}
@@ -208,11 +233,13 @@
 <script>
 let composeQuill = null;
 
-function composeForm(contactsList) {
+function composeForm(contactsList, signatureList, initialSignatureId) {
     return {
         contacts: contactsList,
+        signatures: signatureList,
         contactId: '{{ old('contact_id', request('contact_id', '')) }}',
         templateId: '',
+        signatureId: initialSignatureId || '',
         subject: @json(old('subject', '')),
         toEmail: @json(old('to_email', '')),
         toName: @json(old('to_name', '')),
@@ -245,7 +272,9 @@ function composeForm(contactsList) {
         },
         syncBody() {
             // Right before form submit, copy Quill's HTML into the hidden textarea
-            document.getElementById('composeBody').value = composeQuill.root.innerHTML;
+            const editorHtml = composeQuill.root.innerHTML === '<p><br></p>' ? '' : composeQuill.root.innerHTML;
+            const signatureHtml = this.signatureId && this.signatures[this.signatureId] ? this.signatures[this.signatureId].html : '';
+            document.getElementById('composeBody').value = editorHtml + signatureHtml;
         },
         onContactSelected() {
             if (!this.contactId) return;

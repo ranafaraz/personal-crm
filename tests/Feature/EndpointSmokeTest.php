@@ -33,6 +33,7 @@ class EndpointSmokeTest extends TestCase
             'opportunities' => ['/opportunities'],
             'email accounts' => ['/email-accounts'],
             'email templates' => ['/email-templates'],
+            'email signatures' => ['/email-signatures'],
             'emails' => ['/emails'],
             'compose' => ['/compose'],
             'inbox' => ['/inbox'],

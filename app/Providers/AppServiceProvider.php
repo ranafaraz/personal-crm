@@ -12,12 +12,14 @@ use App\Models\Contact;
 use App\Models\Document;
 use App\Models\EmailAccount;
 use App\Models\EmailMessage;
+use App\Models\EmailSignature;
 use App\Models\EmailTemplate;
 use App\Models\Opportunity;
 use App\Policies\ContactPolicy;
 use App\Policies\DocumentPolicy;
 use App\Policies\EmailAccountPolicy;
 use App\Policies\EmailMessagePolicy;
+use App\Policies\EmailSignaturePolicy;
 use App\Policies\EmailTemplatePolicy;
 use App\Policies\OpportunityPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
@@ -37,6 +39,7 @@ class AppServiceProvider extends AuthServiceProvider
         Document::class      => DocumentPolicy::class,
         EmailTemplate::class => EmailTemplatePolicy::class,
         EmailMessage::class  => EmailMessagePolicy::class,
+        EmailSignature::class => EmailSignaturePolicy::class,
     ];
 
     /**
