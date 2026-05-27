@@ -244,7 +244,7 @@ jobs:
               printf '%s\n' 'if ($existingTitle) {'
               printf '%s\n' '    $rules = $dupReq->setUserResolver(fn()=>$user)->rules();'
               printf '%s\n' '    $v = \Illuminate\Support\Facades\Validator::make(["title"=>$existingTitle], $rules);'
-              printf '%s\n' '    echo "  duplicate opp title (\""+(strlen($existingTitle))+" chars\") fails validation: ".($v->fails() ? "YES" : "NO")."\n";'
+              printf '%s\n' '    echo "  duplicate opp title (".strlen($existingTitle)." chars) fails validation: ".($v->fails() ? "YES" : "NO")."\n";'
               printf '%s\n' '} else { echo "  no existing opportunity to test against\n"; }'
 
               printf '%s\n' '$dupReqC = new \App\Http\Requests\StoreContactRequest();'
