@@ -140,54 +140,68 @@ Route::prefix('social/v1')
     ->group(function () {
 
         // Legacy draft ingestion (GPT connector)
-        Route::get('drafts', [SocialAiDraftController::class, 'index']);
-        Route::post('drafts', [SocialAiDraftController::class, 'store'])->middleware('throttle:10,1');
+        Route::get('drafts', [SocialAiDraftController::class, 'index'])
+            ->middleware('api.scope:social:read');
+        Route::post('drafts', [SocialAiDraftController::class, 'store'])
+            ->middleware(['api.scope:social:write', 'throttle:10,1']);
 
         // ── LinkedIn Accounts ──────────────────────────────────────────────
-        Route::get('linkedin/accounts', [LinkedInAccountController::class, 'index']);
+        Route::get('linkedin/accounts', [LinkedInAccountController::class, 'index'])
+            ->middleware('api.scope:social:read');
         Route::post('linkedin/accounts/{id}/verify', [LinkedInAccountController::class, 'verify'])
-            ->middleware('throttle:10,1');
+            ->middleware(['api.scope:social:read', 'throttle:10,1']);
 
         // ── LinkedIn Posts (drafts + published) ───────────────────────────
-        Route::get('linkedin/posts', [LinkedInPostController::class, 'index']);
+        Route::get('linkedin/posts', [LinkedInPostController::class, 'index'])
+            ->middleware('api.scope:social:read');
         Route::post('linkedin/posts', [LinkedInPostController::class, 'store'])
-            ->middleware('throttle:10,1');
-        Route::get('linkedin/posts/{id}', [LinkedInPostController::class, 'show']);
+            ->middleware(['api.scope:social:write', 'throttle:10,1']);
+        Route::get('linkedin/posts/{id}', [LinkedInPostController::class, 'show'])
+            ->middleware('api.scope:social:read');
         Route::patch('linkedin/posts/{id}', [LinkedInPostController::class, 'update'])
-            ->middleware('throttle:10,1');
-        Route::delete('linkedin/posts/{id}', [LinkedInPostController::class, 'destroy']);
+            ->middleware(['api.scope:social:write', 'throttle:10,1']);
+        Route::delete('linkedin/posts/{id}', [LinkedInPostController::class, 'destroy'])
+            ->middleware('api.scope:social:write');
 
         // Confirmation request (human must approve before any publish action)
         Route::post('linkedin/posts/{id}/request-confirmation', [LinkedInPostController::class, 'requestConfirmation'])
-            ->middleware('throttle:5,1');
+            ->middleware(['api.scope:social:publish', 'throttle:5,1']);
 
-        // Published-post management (requires approved confirmation)
+        // Published-post management (requires approved confirmation + social:publish scope)
         Route::patch('linkedin/posts/{id}/published', [LinkedInPostController::class, 'updatePublished'])
-            ->middleware('throttle:5,1');
+            ->middleware(['api.scope:social:publish', 'throttle:5,1']);
         Route::delete('linkedin/posts/{id}/published', [LinkedInPostController::class, 'deletePublished'])
-            ->middleware('throttle:5,1');
-        Route::get('linkedin/posts/{id}/provider-status', [LinkedInPostController::class, 'providerStatus']);
+            ->middleware(['api.scope:social:publish', 'throttle:5,1']);
+        Route::get('linkedin/posts/{id}/provider-status', [LinkedInPostController::class, 'providerStatus'])
+            ->middleware('api.scope:social:read');
 
         // ── LinkedIn Media ────────────────────────────────────────────────
-        Route::get('linkedin/posts/{postId}/media', [LinkedInMediaController::class, 'index']);
+        Route::get('linkedin/posts/{postId}/media', [LinkedInMediaController::class, 'index'])
+            ->middleware('api.scope:social:read');
         Route::post('linkedin/posts/{postId}/media', [LinkedInMediaController::class, 'attach'])
-            ->middleware('throttle:10,1');
-        Route::delete('linkedin/posts/{postId}/media/{assetId}', [LinkedInMediaController::class, 'detach']);
+            ->middleware(['api.scope:social:write', 'throttle:10,1']);
+        Route::delete('linkedin/posts/{postId}/media/{assetId}', [LinkedInMediaController::class, 'detach'])
+            ->middleware('api.scope:social:write');
         Route::post('linkedin/posts/{postId}/media/{assetId}/upload-to-linkedin', [LinkedInMediaController::class, 'uploadToLinkedIn'])
-            ->middleware('throttle:5,1');
+            ->middleware(['api.scope:social:publish', 'throttle:5,1']);
 
         // ── Confirmations ─────────────────────────────────────────────────
-        Route::get('linkedin/confirmations/{token}', [LinkedInConfirmationController::class, 'show']);
+        Route::get('linkedin/confirmations/{token}', [LinkedInConfirmationController::class, 'show'])
+            ->middleware('api.scope:social:read');
         Route::post('linkedin/confirmations/{token}/approve', [LinkedInConfirmationController::class, 'approve'])
-            ->middleware('throttle:10,1');
+            ->middleware(['api.scope:social:publish', 'throttle:10,1']);
         Route::post('linkedin/confirmations/{token}/reject', [LinkedInConfirmationController::class, 'reject'])
-            ->middleware('throttle:10,1');
+            ->middleware(['api.scope:social:publish', 'throttle:10,1']);
 
         // ── Analytics ─────────────────────────────────────────────────────
-        Route::get('linkedin/analytics/dashboard', [LinkedInAnalyticsController::class, 'insightsDashboard']);
-        Route::get('linkedin/analytics/accounts/{accountId}/aggregate', [LinkedInAnalyticsController::class, 'aggregateMetrics']);
-        Route::get('linkedin/analytics/accounts/{accountId}/followers', [LinkedInAnalyticsController::class, 'followerMetrics']);
-        Route::get('linkedin/analytics/posts/{postId}', [LinkedInAnalyticsController::class, 'postMetrics']);
+        Route::get('linkedin/analytics/dashboard', [LinkedInAnalyticsController::class, 'insightsDashboard'])
+            ->middleware('api.scope:social:analytics');
+        Route::get('linkedin/analytics/accounts/{accountId}/aggregate', [LinkedInAnalyticsController::class, 'aggregateMetrics'])
+            ->middleware('api.scope:social:analytics');
+        Route::get('linkedin/analytics/accounts/{accountId}/followers', [LinkedInAnalyticsController::class, 'followerMetrics'])
+            ->middleware('api.scope:social:analytics');
+        Route::get('linkedin/analytics/posts/{postId}', [LinkedInAnalyticsController::class, 'postMetrics'])
+            ->middleware('api.scope:social:analytics');
         Route::post('linkedin/analytics/accounts/{accountId}/sync', [LinkedInAnalyticsController::class, 'syncNow'])
-            ->middleware('throttle:5,1');
+            ->middleware(['api.scope:social:analytics', 'throttle:5,1']);
     });
