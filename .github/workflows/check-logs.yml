@@ -15,4 +15,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
-            grep "Gpt\|gpt\|opportunities\|AiAction\|OpportunityController\|timeline_events\|TimelineEvent" /var/www/crm.dexdevs.com/storage/logs/laravel.log | tail -50
+            echo "=== MIGRATION STATUS ==="
+            cd /var/www/crm.dexdevs.com && php artisan migrate:status | tail -20
+            echo "=== RECENT ERRORS (last 80 lines) ==="
+            tail -80 /var/www/crm.dexdevs.com/storage/logs/laravel.log | grep -v "^#" | grep -v "Stack trace"
