@@ -150,21 +150,35 @@
 
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-2">Scopes</label>
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
-                    @php
-                    $allScopes = [
-                        'dashboard:read','opportunities:read','opportunities:write',
-                        'contacts:read','contacts:write','drafts:read','drafts:create',
-                        'followups:read','followups:create','replies:read','notes:write',
-                    ];
-                    @endphp
-                    @foreach($allScopes as $scope)
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="scopes[]" value="{{ $scope }}"
-                            class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400"
-                            {{ in_array($scope, old('scopes', ['dashboard:read','opportunities:read','contacts:read'])) ? 'checked' : '' }}>
-                        <code class="text-xs text-slate-700">{{ $scope }}</code>
-                    </label>
+                @php
+                $scopeGroups = [
+                    'General'      => ['dashboard:read'],
+                    'Contacts'     => ['contacts:read', 'contacts:write'],
+                    'Opportunities'=> ['opportunities:read', 'opportunities:write'],
+                    'Drafts'       => ['drafts:read', 'drafts:create'],
+                    'Signatures'   => ['signatures:read', 'signatures:write'],
+                    'Attachments'  => ['attachments:read', 'attachments:write'],
+                    'Follow-ups'   => ['followups:read', 'followups:create'],
+                    'Replies'      => ['replies:read'],
+                    'Notes'        => ['notes:write'],
+                ];
+                $defaultScopes = ['dashboard:read', 'contacts:read', 'opportunities:read'];
+                @endphp
+                <div class="space-y-2">
+                    @foreach($scopeGroups as $group => $scopes)
+                    <div class="flex items-start gap-3">
+                        <span class="w-28 shrink-0 text-xs font-medium text-slate-400 pt-0.5">{{ $group }}</span>
+                        <div class="flex flex-wrap gap-x-5 gap-y-1">
+                            @foreach($scopes as $scope)
+                            <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+                                <input type="checkbox" name="scopes[]" value="{{ $scope }}"
+                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400"
+                                    {{ in_array($scope, old('scopes', $defaultScopes)) ? 'checked' : '' }}>
+                                <code class="text-xs text-slate-700">{{ $scope }}</code>
+                            </label>
+                            @endforeach
+                        </div>
+                    </div>
                     @endforeach
                 </div>
             </div>
