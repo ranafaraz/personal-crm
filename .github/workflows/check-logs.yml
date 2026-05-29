@@ -15,4 +15,4 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
-            tail -100 /var/www/crm.dexdevs.com/storage/logs/laravel.log | grep -B2 -A15 "\[20.*ERROR\|CRITICAL\|Exception" | tail -80
+            tail -200 /var/www/crm.dexdevs.com/storage/logs/laravel.log | grep -B2 -A30 "ERROR\|CRITICAL" | tail -100
