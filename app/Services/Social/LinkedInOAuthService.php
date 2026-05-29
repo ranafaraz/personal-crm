@@ -4,35 +4,22 @@ namespace App\Services\Social;
 
 use App\Models\SocialAccount;
 use App\Models\SocialActivityLog;
+use App\Models\SocialOAuthApp;
 use App\Models\SocialProvider;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class LinkedInOAuthService
 {
-    private string $clientId;
-    private string $clientSecret;
-    private string $redirectUri;
-    private string $scopes;
-
-    public function __construct()
-    {
-        $this->clientId     = config('services.linkedin.client_id');
-        $this->clientSecret = config('services.linkedin.client_secret');
-        $this->redirectUri  = config('services.linkedin.redirect');
-        $this->scopes       = config('services.linkedin.scopes', 'w_member_social openid profile email');
-    }
-
-    public function authorizationUrl(string $state): string
+    public function authorizationUrl(SocialOAuthApp $app, string $state): string
     {
         return 'https://www.linkedin.com/oauth/v2/authorization?' . http_build_query([
             'response_type' => 'code',
-            'client_id'     => $this->clientId,
-            'redirect_uri'  => $this->redirectUri,
-            'scope'         => $this->scopes,
+            'client_id'     => $app->client_id,
+            'redirect_uri'  => $app->resolvedRedirectUri(),
+            'scope'         => $app->scopes,
             'state'         => $state,
         ]);
     }
@@ -40,20 +27,19 @@ class LinkedInOAuthService
     /**
      * Exchange authorization code for access token.
      * Returns ['access_token', 'expires_in', 'refresh_token'?, 'scope']
-     * Throws on failure.
      */
-    public function exchangeCode(string $code): array
+    public function exchangeCode(SocialOAuthApp $app, string $code): array
     {
         $response = Http::asForm()->post('https://www.linkedin.com/oauth/v2/accessToken', [
             'grant_type'    => 'authorization_code',
             'code'          => $code,
-            'redirect_uri'  => $this->redirectUri,
-            'client_id'     => $this->clientId,
-            'client_secret' => $this->clientSecret,
+            'redirect_uri'  => $app->resolvedRedirectUri(),
+            'client_id'     => $app->client_id,
+            'client_secret' => $app->client_secret_encrypted,
         ]);
 
         if (! $response->successful()) {
-            throw new \RuntimeException(
+            throw new LinkedInOAuthException(
                 'LinkedIn token exchange failed: ' . $this->sanitizeErrorResponse($response->body())
             );
         }
@@ -67,7 +53,6 @@ class LinkedInOAuthService
      */
     public function resolveMemberIdentity(string $accessToken): array
     {
-        // Try OpenID Connect userinfo (requires openid + profile scope)
         try {
             $userinfo = Http::withToken($accessToken)
                 ->get('https://api.linkedin.com/v2/userinfo');
@@ -83,10 +68,9 @@ class LinkedInOAuthService
                 }
             }
         } catch (ConnectionException) {
-            // fall through to /v2/me
+            // fall through
         }
 
-        // Fallback: /v2/me (requires r_liteprofile or r_basicprofile)
         $me = Http::withToken($accessToken)
             ->withHeaders(['X-Restli-Protocol-Version' => '2.0.0'])
             ->get('https://api.linkedin.com/v2/me', [
@@ -104,28 +88,35 @@ class LinkedInOAuthService
             }
         }
 
-        throw new \RuntimeException('Could not resolve LinkedIn member identity. Ensure openid+profile or r_liteprofile scope is granted.');
+        throw new LinkedInOAuthException('Could not resolve LinkedIn member identity. Ensure openid+profile or r_liteprofile scope is granted.');
     }
 
     /**
      * Create or update the SocialAccount record after successful OAuth.
+     * One account per user per OAuth app.
      */
-    public function storeConnection(User $user, array $tokenData, array $identity): SocialAccount
+    public function storeConnection(User $user, SocialOAuthApp $app, array $tokenData, array $identity): SocialAccount
     {
         $provider = SocialProvider::where('key', 'linkedin')->firstOrFail();
 
-        $expiresAt = isset($tokenData['expires_in'])
+        $expiresAt     = isset($tokenData['expires_in'])
             ? now()->addSeconds((int) $tokenData['expires_in'])
             : null;
-
         $grantedScopes = isset($tokenData['scope'])
             ? explode(',', $tokenData['scope'])
             : [];
 
+        // If this is the first account for this user+provider, make it default
+        $isFirstAccount = ! SocialAccount::where('user_id', $user->id)
+            ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
+            ->exists();
+
         $account = SocialAccount::updateOrCreate(
-            ['user_id' => $user->id, 'provider_id' => $provider->id],
+            ['user_id' => $user->id, 'social_oauth_app_id' => $app->id],
             [
                 'tenant_id'               => $user->tenant_id,
+                'provider_id'             => $provider->id,
+                'social_oauth_app_id'     => $app->id,
                 'provider_account_urn'    => $identity['urn'],
                 'display_name'            => $identity['display_name'],
                 'access_token_encrypted'  => $tokenData['access_token'],
@@ -134,7 +125,8 @@ class LinkedInOAuthService
                 'scopes_json'             => $grantedScopes,
                 'status'                  => 'connected',
                 'last_verified_at'        => now(),
-                'metadata_json'           => ['connected_via' => 'oauth2'],
+                'is_default'              => $isFirstAccount || $app->is_default,
+                'metadata_json'           => ['connected_via' => 'oauth2', 'app_label' => $app->label],
             ]
         );
 
@@ -142,7 +134,7 @@ class LinkedInOAuthService
             $user->id, $user->tenant_id,
             'linkedin_connected',
             SocialAccount::class, $account->id,
-            "LinkedIn account connected: {$identity['display_name']}"
+            "LinkedIn account connected via app '{$app->label}': {$identity['display_name']}"
         );
 
         return $account;
@@ -160,6 +152,15 @@ class LinkedInOAuthService
             'token_expires_at'        => null,
         ]);
 
+        // If this was the default, promote another connected account
+        if ($account->is_default) {
+            $next = SocialAccount::where('user_id', $userId)
+                ->where('id', '!=', $account->id)
+                ->where('status', 'connected')
+                ->first();
+            $next?->update(['is_default' => true]);
+        }
+
         SocialActivityLog::record(
             $userId, $tenantId,
             'linkedin_disconnected',
@@ -168,9 +169,10 @@ class LinkedInOAuthService
         );
     }
 
-    /** Strip any token values from an error response body before logging. */
     private function sanitizeErrorResponse(string $body): string
     {
         return preg_replace('/"access_token":"[^"]*"/', '"access_token":"[REDACTED]"', $body) ?? $body;
     }
 }
+
+class LinkedInOAuthException extends \RuntimeException {}

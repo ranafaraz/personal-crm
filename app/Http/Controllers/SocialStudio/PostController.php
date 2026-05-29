@@ -45,6 +45,7 @@ class PostController extends Controller
         $linkedInAccount = SocialAccount::where('user_id', $user->id)
             ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
             ->where('status', 'connected')
+            ->orderByDesc('is_default')
             ->first();
 
         return view('social-studio.posts.create', compact('assets', 'linkedInAccount'));
@@ -93,10 +94,11 @@ class PostController extends Controller
             }
         }
 
-        // Create LinkedIn target if account is connected
+        // Create LinkedIn target using the default connected account
         $account = SocialAccount::where('user_id', $user->id)
             ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
             ->where('status', 'connected')
+            ->orderByDesc('is_default')
             ->first();
 
         if ($account) {

@@ -152,7 +152,7 @@
 
             {{-- Social Studio Section --}}
             <p class="sidebar-section">Social</p>
-            <a href="{{ route('social-studio.dashboard') }}" class="sidebar-link {{ request()->routeIs('social-studio.*') && ! request()->routeIs('social-studio.posts.*') && ! request()->routeIs('social-studio.media.*') && ! request()->routeIs('social-studio.calendar') && ! request()->routeIs('social-studio.published') && ! request()->routeIs('social-studio.connections*') ? 'active' : '' }}">
+            <a href="{{ route('social-studio.dashboard') }}" class="sidebar-link {{ request()->routeIs('social-studio.*') && ! request()->routeIs('social-studio.posts.*') && ! request()->routeIs('social-studio.media.*') && ! request()->routeIs('social-studio.calendar') && ! request()->routeIs('social-studio.published') && ! request()->routeIs('social-studio.connections*') && ! request()->routeIs('social-studio.oauth-apps.*') ? 'active' : '' }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
                 </svg>
@@ -176,11 +176,18 @@
                 </svg>
                 Media Library
             </a>
-            <a href="{{ route('social-studio.connections') }}" class="sidebar-link {{ request()->routeIs('social-studio.connections*') ? 'active' : '' }}">
+            <a href="{{ route('social-studio.connections') }}" class="sidebar-link {{ request()->routeIs('social-studio.connections*') && ! request()->routeIs('social-studio.oauth-apps.*') ? 'active' : '' }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
                 </svg>
                 Connections
+            </a>
+            <a href="{{ route('social-studio.oauth-apps.index') }}" class="sidebar-link {{ request()->routeIs('social-studio.oauth-apps.*') ? 'active' : '' }}">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                LinkedIn Apps
             </a>
 
             {{-- Reports Section --}}

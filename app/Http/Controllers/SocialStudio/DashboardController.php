@@ -27,6 +27,7 @@ class DashboardController extends Controller
 
         $linkedInAccount = SocialAccount::where('user_id', $user->id)
             ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
+            ->orderByDesc('is_default')
             ->first();
 
         $providers = SocialProvider::all();

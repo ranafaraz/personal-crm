@@ -31,6 +31,7 @@ use App\Http\Controllers\SocialStudio\CalendarController as SocialCalendarContro
 use App\Http\Controllers\SocialStudio\ConnectionController as SocialConnectionController;
 use App\Http\Controllers\SocialStudio\DashboardController as SocialDashboardController;
 use App\Http\Controllers\SocialStudio\MediaController as SocialMediaController;
+use App\Http\Controllers\SocialStudio\OAuthAppController as SocialOAuthAppController;
 use App\Http\Controllers\SocialStudio\PostController as SocialPostController;
 use App\Http\Controllers\SocialStudio\PublishedController as SocialPublishedController;
 use Illuminate\Support\Facades\Route;
@@ -221,11 +222,21 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth')->prefix('social-studio')->name('social-studio.')->group(function () {
     Route::get('/', [SocialDashboardController::class, 'index'])->name('dashboard');
 
-    // LinkedIn OAuth
+    // LinkedIn OAuth apps (developer credentials)
+    Route::get('oauth-apps', [SocialOAuthAppController::class, 'index'])->name('oauth-apps.index');
+    Route::get('oauth-apps/create', [SocialOAuthAppController::class, 'create'])->name('oauth-apps.create');
+    Route::post('oauth-apps', [SocialOAuthAppController::class, 'store'])->name('oauth-apps.store');
+    Route::get('oauth-apps/{id}/edit', [SocialOAuthAppController::class, 'edit'])->name('oauth-apps.edit');
+    Route::put('oauth-apps/{id}', [SocialOAuthAppController::class, 'update'])->name('oauth-apps.update');
+    Route::delete('oauth-apps/{id}', [SocialOAuthAppController::class, 'destroy'])->name('oauth-apps.destroy');
+    Route::patch('oauth-apps/{id}/set-default', [SocialOAuthAppController::class, 'setDefault'])->name('oauth-apps.set-default');
+
+    // LinkedIn OAuth connections (accounts)
     Route::get('connections', [SocialConnectionController::class, 'index'])->name('connections');
     Route::get('connections/connect', [SocialConnectionController::class, 'connect'])->name('connections.connect');
     Route::get('connections/callback', [SocialConnectionController::class, 'callback'])->name('connections.callback');
     Route::delete('connections/{id}', [SocialConnectionController::class, 'disconnect'])->name('connections.disconnect');
+    Route::patch('connections/{id}/set-default', [SocialConnectionController::class, 'setDefault'])->name('connections.set-default');
     Route::patch('connections/{id}/verify', [SocialConnectionController::class, 'verify'])->name('connections.verify');
 
     // Posts
