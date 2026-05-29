@@ -69,7 +69,7 @@ class ContactController extends GptController
             'job_title'    => 'nullable|string|max:255',
             'linkedin_url' => 'nullable|url|max:2048',
             'notes'        => 'nullable|string|max:5000',
-            'status'       => ['nullable', Rule::in(['active', 'inactive', 'suppressed', 'bounced', 'unsubscribed'])],
+            'status'       => ['nullable', Rule::in(['active', 'suppressed', 'bounced'])],
         ]);
 
         $user = $this->apiUser($request);

@@ -46,7 +46,7 @@ class FollowUpController extends GptController
         $contact = Contact::where('user_id', $user->id)->findOrFail($data['contact_id']);
 
         // Block suppressed contacts
-        $suppressed = in_array($contact->status, ['suppressed', 'bounced', 'unsubscribed'], true);
+        $suppressed = in_array($contact->status, ['suppressed', 'bounced'], true);
         if (! $suppressed && $contact->email) {
             $suppressed = SuppressionList::isSuppressed($user->id, $contact->email);
         }

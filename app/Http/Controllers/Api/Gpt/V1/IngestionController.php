@@ -25,7 +25,7 @@ class IngestionController extends GptController
             'items.*.description'    => 'nullable|string|max:10000',
             'items.*.url'            => 'nullable|url|max:2048',
             'items.*.deadline'       => 'nullable|date',
-            'items.*.priority'       => ['nullable', Rule::in(['low', 'medium', 'high'])],
+            'items.*.priority'       => ['nullable', Rule::in(['low', 'medium', 'high', 'urgent'])],
             'items.*.notes'          => 'nullable|string|max:2000',
         ]);
 
@@ -54,7 +54,7 @@ class IngestionController extends GptController
                 'organization'     => $item['organization'],
                 'description'      => $item['description'] ?? null,
                 'url'              => $item['url'] ?? null,
-                'status'           => 'open',
+                'status'           => 'draft',
                 'priority'         => $item['priority'] ?? 'medium',
                 'deadline'         => $item['deadline'] ?? null,
                 'notes'            => $item['notes'] ?? null,
