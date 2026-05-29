@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -29,9 +30,12 @@ return new class extends Migration
 
         Schema::table('social_accounts', function (Blueprint $table) {
             if (! Schema::hasColumn('social_accounts', 'social_oauth_app_id')) {
-                // Drop the old unique that prevents multiple accounts per provider
+                // MariaDB may refuse to drop this unique if it thinks it backs the provider_id FK;
+                // disable FK checks temporarily to force the drop.
                 if (Schema::hasIndex('social_accounts', 'social_accounts_user_id_provider_id_unique')) {
+                    DB::statement('SET FOREIGN_KEY_CHECKS=0');
                     $table->dropUnique('social_accounts_user_id_provider_id_unique');
+                    DB::statement('SET FOREIGN_KEY_CHECKS=1');
                 }
 
                 $table->foreignId('social_oauth_app_id')
@@ -45,7 +49,6 @@ return new class extends Migration
                 $table->boolean('is_default')->default(false)->after('metadata_json');
             }
 
-            // Add new unique only if not already present
             if (! Schema::hasIndex('social_accounts', 'sa_user_app_unique')) {
                 $table->unique(['user_id', 'social_oauth_app_id'], 'sa_user_app_unique');
             }
