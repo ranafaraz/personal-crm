@@ -1,0 +1,30 @@
+name: Create Test API Token
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'User email'
+        required: true
+        default: 'ranafarazahmed@gmail.com'
+      client_name:
+        description: 'Client name'
+        required: true
+        default: 'Test GPT Client'
+
+jobs:
+  create-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create API token via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            cd /var/www/crm.dexdevs.com
+            php artisan crm:api-client:create \
+              "${{ github.event.inputs.email }}" \
+              "${{ github.event.inputs.client_name }}"
