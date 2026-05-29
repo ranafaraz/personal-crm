@@ -27,6 +27,12 @@ use App\Http\Controllers\UserSettingController;
 use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\OpenApiController;
+use App\Http\Controllers\SocialStudio\CalendarController as SocialCalendarController;
+use App\Http\Controllers\SocialStudio\ConnectionController as SocialConnectionController;
+use App\Http\Controllers\SocialStudio\DashboardController as SocialDashboardController;
+use App\Http\Controllers\SocialStudio\MediaController as SocialMediaController;
+use App\Http\Controllers\SocialStudio\PostController as SocialPostController;
+use App\Http\Controllers\SocialStudio\PublishedController as SocialPublishedController;
 use Illuminate\Support\Facades\Route;
 
 // ---------------------------------------------------------------------------
@@ -207,6 +213,50 @@ Route::middleware('auth')->group(function () {
     Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('notifications/preferences', [NotificationController::class, 'updatePreference'])->name('notifications.preferences');
+});
+
+// ---------------------------------------------------------------------------
+// Social Studio
+// ---------------------------------------------------------------------------
+Route::middleware('auth')->prefix('social-studio')->name('social-studio.')->group(function () {
+    Route::get('/', [SocialDashboardController::class, 'index'])->name('dashboard');
+
+    // LinkedIn OAuth
+    Route::get('connections', [SocialConnectionController::class, 'index'])->name('connections');
+    Route::get('connections/connect', [SocialConnectionController::class, 'connect'])->name('connections.connect');
+    Route::get('connections/callback', [SocialConnectionController::class, 'callback'])->name('connections.callback');
+    Route::delete('connections/{id}', [SocialConnectionController::class, 'disconnect'])->name('connections.disconnect');
+    Route::patch('connections/{id}/verify', [SocialConnectionController::class, 'verify'])->name('connections.verify');
+
+    // Posts
+    Route::get('posts', [SocialPostController::class, 'index'])->name('posts.index');
+    Route::get('posts/create', [SocialPostController::class, 'create'])->name('posts.create');
+    Route::post('posts', [SocialPostController::class, 'store'])->name('posts.store');
+    Route::get('posts/{id}', [SocialPostController::class, 'show'])->name('posts.show');
+    Route::get('posts/{id}/edit', [SocialPostController::class, 'edit'])->name('posts.edit');
+    Route::put('posts/{id}', [SocialPostController::class, 'update'])->name('posts.update');
+    Route::delete('posts/{id}', [SocialPostController::class, 'destroy'])->name('posts.destroy');
+    Route::patch('posts/{id}/submit-for-review', [SocialPostController::class, 'submitForReview'])->name('posts.submit-for-review');
+    Route::patch('posts/{id}/approve', [SocialPostController::class, 'approve'])->name('posts.approve');
+    Route::patch('posts/{id}/reject', [SocialPostController::class, 'reject'])->name('posts.reject');
+    Route::patch('posts/{id}/schedule', [SocialPostController::class, 'schedule'])->name('posts.schedule');
+    Route::patch('posts/{id}/cancel-schedule', [SocialPostController::class, 'cancelSchedule'])->name('posts.cancel-schedule');
+    Route::post('posts/{id}/publish-now', [SocialPostController::class, 'publishNow'])->name('posts.publish-now');
+
+    // Calendar
+    Route::get('calendar', [SocialCalendarController::class, 'index'])->name('calendar');
+
+    // Published
+    Route::get('published', [SocialPublishedController::class, 'index'])->name('published');
+
+    // Media Library
+    Route::get('media', [SocialMediaController::class, 'index'])->name('media.index');
+    Route::get('media/create', [SocialMediaController::class, 'create'])->name('media.create');
+    Route::post('media', [SocialMediaController::class, 'store'])->name('media.store');
+    Route::get('media/{id}', [SocialMediaController::class, 'show'])->name('media.show');
+    Route::get('media/{id}/edit', [SocialMediaController::class, 'edit'])->name('media.edit');
+    Route::put('media/{id}', [SocialMediaController::class, 'update'])->name('media.update');
+    Route::delete('media/{id}', [SocialMediaController::class, 'destroy'])->name('media.destroy');
 });
 
 // ---------------------------------------------------------------------------

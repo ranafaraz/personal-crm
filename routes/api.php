@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Gpt\V1\SignatureController;
 use App\Http\Controllers\Api\Gpt\V1\AttachmentController;
 use App\Http\Controllers\Api\Gpt\V1\DraftAttachmentController;
 use App\Http\Controllers\Api\Gpt\V1\DraftPreviewController;
+use App\Http\Controllers\Api\Social\AiDraftController as SocialAiDraftController;
 use Illuminate\Support\Facades\Route;
 
 // ---------------------------------------------------------------------------
@@ -122,4 +123,15 @@ Route::prefix('gpt/v1')
         Route::post('confirmations', [ConfirmationController::class, 'store'])
             ->middleware('throttle:10,1');
         Route::get('confirmations/{id}', [ConfirmationController::class, 'show']);
+    });
+
+// ---------------------------------------------------------------------------
+// Social Studio AI draft ingestion  –  /api/social/v1
+// Drafts only — NEVER auto-publishes. Human approval required.
+// ---------------------------------------------------------------------------
+Route::prefix('social/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:30,1'])
+    ->group(function () {
+        Route::get('drafts', [SocialAiDraftController::class, 'index']);
+        Route::post('drafts', [SocialAiDraftController::class, 'store'])->middleware('throttle:10,1');
     });

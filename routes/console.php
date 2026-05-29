@@ -13,3 +13,6 @@ Schedule::command('crm:send-scheduled')->everyFiveMinutes();
 
 // Reset daily email send counters at midnight
 Schedule::command('crm:reset-daily-counters')->dailyAt('00:00');
+
+// Publish scheduled social posts every 5 minutes (only approved posts are dispatched)
+Schedule::command('social:publish-due-posts')->everyFiveMinutes();
