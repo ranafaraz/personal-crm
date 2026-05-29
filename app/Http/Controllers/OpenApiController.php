@@ -14,7 +14,7 @@ class OpenApiController extends Controller
             'openapi' => '3.1.0',
             'info' => [
                 'title'       => 'Personal Outreach CRM – GPT Actions API',
-                'version'     => '1.1.0',
+                'version'     => '1.2.0',
                 'description' => 'Manage CRM data on behalf of the authenticated user. All actions require an X-Api-Key header. Email drafts are NEVER sent automatically — the user must review and send from the CRM UI.',
             ],
             'servers' => [
@@ -253,6 +253,23 @@ class OpenApiController extends Controller
                         'summary'     => 'Get opportunity by ID',
                         'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
                         'responses'   => ['200' => ['description' => 'Opportunity detail']],
+                    ],
+                ],
+                '/opportunities/{id}/contacts' => [
+                    'post' => [
+                        'operationId' => 'linkContactToOpportunity',
+                        'summary'     => 'Link a contact to an opportunity',
+                        'description' => 'Creates or updates the contact–opportunity relationship. Idempotent — safe to call multiple times. Scope: opportunities:write.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'       => 'object',
+                            'required'   => ['contact_id'],
+                            'properties' => [
+                                'contact_id' => ['type' => 'integer', 'description' => 'ID of the contact to link'],
+                                'role'       => ['type' => 'string', 'maxLength' => 100, 'description' => 'Optional role label, e.g. "recruiter", "hiring manager"'],
+                            ],
+                        ]]]],
+                        'responses' => ['200' => ['description' => 'Contact linked; returns updated contacts list']],
                     ],
                 ],
                 '/opportunities/{id}/notes' => [

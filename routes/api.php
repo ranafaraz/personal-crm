@@ -41,6 +41,8 @@ Route::prefix('gpt/v1')
             ->middleware(['api.scope:opportunities:write', 'throttle:20,1']);
         Route::get('opportunities/{id}', [OpportunityController::class, 'show'])
             ->middleware('api.scope:opportunities:read');
+        Route::post('opportunities/{id}/contacts', [OpportunityController::class, 'linkContact'])
+            ->middleware(['api.scope:opportunities:write', 'throttle:20,1']);
         Route::post('opportunities/{id}/notes', [OpportunityController::class, 'addNote'])
             ->middleware(['api.scope:notes:write', 'throttle:20,1']);
 

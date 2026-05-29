@@ -112,6 +112,11 @@ class FollowUpController extends GptController
             $followUp->apiAttachments()->sync($attachments->pluck('id')->toArray());
         }
 
+        // Keep opportunity–contact pivot in sync automatically.
+        if ($opportunity) {
+            $opportunity->contacts()->syncWithoutDetaching([$contact->id]);
+        }
+
         $this->audit($request, 'create_followup', 'follow_up', $followUp->id, 'low',
             "contact_id={$contact->id}, due_at={$data['due_at']}" .
             ", signature_id=" . ($signature?->id ?? 'null') .

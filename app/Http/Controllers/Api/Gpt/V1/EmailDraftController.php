@@ -123,6 +123,11 @@ class EmailDraftController extends GptController
             $draft->apiAttachments()->sync($syncData);
         }
 
+        // Keep opportunity–contact pivot in sync automatically.
+        if ($opportunity) {
+            $opportunity->contacts()->syncWithoutDetaching([$contact->id]);
+        }
+
         TimelineEvent::create([
             'user_id'           => $user->id,
             'tenant_id'         => $user->tenant_id,

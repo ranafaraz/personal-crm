@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Gpt\V1;
 
+use App\Models\Contact;
 use App\Models\Opportunity;
 use App\Models\TimelineEvent;
 use Illuminate\Http\JsonResponse;
@@ -65,9 +66,38 @@ class OpportunityController extends GptController
 
     public function show(Request $request, int $id): JsonResponse
     {
-        $opp = Opportunity::where('user_id', $this->apiUser($request)->id)->findOrFail($id);
+        $opp = Opportunity::where('user_id', $this->apiUser($request)->id)
+            ->with('contacts')
+            ->findOrFail($id);
 
         return response()->json(['data' => $this->format($opp, true)]);
+    }
+
+    public function linkContact(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'contact_id' => 'required|integer',
+            'role'       => 'nullable|string|max:100',
+        ]);
+
+        $user    = $this->apiUser($request);
+        $opp     = Opportunity::where('user_id', $user->id)->findOrFail($id);
+        $contact = Contact::where('user_id', $user->id)->findOrFail($data['contact_id']);
+
+        $opp->contacts()->syncWithoutDetaching([
+            $contact->id => ['role' => $data['role'] ?? null],
+        ]);
+
+        $opp->load('contacts');
+
+        $this->audit($request, 'link_contact', 'opportunity', $opp->id, 'low',
+            "contact_id={$contact->id}, role=" . ($data['role'] ?? 'null'));
+
+        return response()->json([
+            'message'        => 'Contact linked to opportunity.',
+            'contacts_count' => $opp->contacts->count(),
+            'contacts'       => $opp->contacts->map(fn ($c) => $c->only(['id', 'first_name', 'last_name', 'email']))->values(),
+        ]);
     }
 
     public function store(Request $request): JsonResponse
@@ -153,22 +183,28 @@ class OpportunityController extends GptController
 
     private function format(Opportunity $o, bool $full = false): array
     {
+        $contactsLoaded = $o->relationLoaded('contacts');
+
         $base = [
-            'id'           => $o->id,
-            'title'        => $o->title,
-            'type'         => $o->type,
-            'organization' => $o->organization,
-            'status'       => $o->status,
-            'priority'     => $o->priority,
-            'deadline'     => $o->deadline?->toDateString(),
-            'url'          => $o->url,
-            'created_at'   => $o->created_at?->toISOString(),
-            'updated_at'   => $o->updated_at?->toISOString(),
+            'id'             => $o->id,
+            'title'          => $o->title,
+            'type'           => $o->type,
+            'organization'   => $o->organization,
+            'status'         => $o->status,
+            'priority'       => $o->priority,
+            'deadline'       => $o->deadline?->toDateString(),
+            'url'            => $o->url,
+            'contacts_count' => $contactsLoaded ? $o->contacts->count() : ($o->contacts_count ?? 0),
+            'created_at'     => $o->created_at?->toISOString(),
+            'updated_at'     => $o->updated_at?->toISOString(),
         ];
 
         if ($full) {
             $base['description'] = $o->description;
             $base['notes']       = $o->notes;
+            $base['contacts']    = $contactsLoaded
+                ? $o->contacts->map(fn ($c) => $c->only(['id', 'first_name', 'last_name', 'email']))->values()
+                : [];
         }
 
         return $base;
