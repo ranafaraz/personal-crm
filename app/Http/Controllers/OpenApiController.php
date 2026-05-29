@@ -725,4 +725,303 @@ class OpenApiController extends Controller
             ->header('Access-Control-Allow-Origin', '*')
             ->header('Content-Type', 'application/json; charset=utf-8');
     }
+
+    // ── LinkedIn Social Studio GPT Actions ────────────────────────────────────
+
+    public function socialActions(): JsonResponse
+    {
+        $base = rtrim(config('app.url'), '/');
+
+        $schema = [
+            'openapi' => '3.1.0',
+            'info' => [
+                'title'       => 'Personal CRM – LinkedIn Social Studio',
+                'version'     => '1.0.0',
+                'description' => implode(' ', [
+                    'Create and schedule LinkedIn posts via the CRM.',
+                    'GPT MUST NOT publish automatically.',
+                    'Use requestPublishConfirmation to propose publishing;',
+                    'the human approves or rejects in the CRM before anything goes live.',
+                    'All write calls require X-Api-Key with social:write scope.',
+                    'Publishing actions require social:publish scope.',
+                ]),
+            ],
+            'servers' => [
+                ['url' => $base . '/api/social/v1', 'description' => 'CRM Social API'],
+            ],
+            'components' => [
+                'securitySchemes' => [
+                    'ApiKeyAuth' => [
+                        'type' => 'apiKey',
+                        'in'   => 'header',
+                        'name' => 'X-Api-Key',
+                    ],
+                ],
+                'schemas' => [
+                    'LinkedInPost' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'id'                => ['type' => 'integer'],
+                            'title_internal'    => ['type' => 'string', 'description' => 'Internal label, not posted publicly'],
+                            'post_body'         => ['type' => 'string'],
+                            'post_type'         => ['type' => 'string', 'enum' => ['text', 'article_link', 'image']],
+                            'status'            => ['type' => 'string', 'enum' => ['draft', 'ready_for_review', 'scheduled', 'publishing', 'published', 'failed']],
+                            'approval_status'   => ['type' => 'string', 'enum' => ['pending', 'approved', 'rejected']],
+                            'hashtags'          => ['type' => 'array', 'items' => ['type' => 'string']],
+                            'article_url'       => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                            'scheduled_at'      => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            'timezone_display'  => ['type' => 'string', 'nullable' => true],
+                            'author_member_urn' => ['type' => 'string', 'nullable' => true],
+                            'content_version'   => ['type' => 'integer'],
+                            'linkedin_post_url' => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                            'created_at'        => ['type' => 'string', 'format' => 'date-time'],
+                            'updated_at'        => ['type' => 'string', 'format' => 'date-time'],
+                        ],
+                    ],
+                    'Confirmation' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'confirmation_token' => ['type' => 'string', 'format' => 'uuid'],
+                            'action'             => ['type' => 'string', 'enum' => ['publish_now', 'schedule']],
+                            'status'             => ['type' => 'string', 'enum' => ['pending', 'approved', 'rejected', 'used', 'expired']],
+                            'is_usable'          => ['type' => 'boolean'],
+                            'expires_at'         => ['type' => 'string', 'format' => 'date-time'],
+                            'scheduled_at'       => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                        ],
+                    ],
+                    'LinkedInAccount' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'id'               => ['type' => 'integer'],
+                            'display_name'     => ['type' => 'string'],
+                            'status'           => ['type' => 'string'],
+                            'is_default'       => ['type' => 'boolean'],
+                            'capabilities'     => ['type' => 'object'],
+                            'missing_scopes'   => ['type' => 'array', 'items' => ['type' => 'string']],
+                        ],
+                    ],
+                ],
+            ],
+            'security' => [['ApiKeyAuth' => []]],
+            'paths' => [
+
+                // ── Accounts ──────────────────────────────────────────────────
+                '/linkedin/accounts' => [
+                    'get' => [
+                        'operationId' => 'listLinkedInAccounts',
+                        'summary'     => 'List connected LinkedIn accounts',
+                        'description' => 'Returns all connected LinkedIn accounts. Use is_default to pick the default account. Scope: social:read.',
+                        'responses'   => [
+                            '200' => ['description' => 'Connected accounts', 'content' => ['application/json' => ['schema' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'accounts' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/LinkedInAccount']],
+                                ],
+                            ]]]],
+                        ],
+                    ],
+                ],
+
+                // ── Posts ─────────────────────────────────────────────────────
+                '/linkedin/posts' => [
+                    'get' => [
+                        'operationId' => 'listLinkedInPosts',
+                        'summary'     => 'List LinkedIn post drafts',
+                        'description' => 'Lists posts. Filter by status (draft, scheduled, published, etc.). Scope: social:read.',
+                        'parameters'  => [
+                            ['name' => 'status', 'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['draft', 'ready_for_review', 'scheduled', 'published', 'failed']]],
+                        ],
+                        'responses' => ['200' => ['description' => 'Post list', 'content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => ['posts' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/LinkedInPost']]],
+                        ]]]]],
+                    ],
+                    'post' => [
+                        'operationId' => 'createLinkedInPost',
+                        'summary'     => 'Create a LinkedIn post draft',
+                        'description' => implode(' ', [
+                            'Saves a draft post to the CRM. The post is NOT published automatically.',
+                            'To schedule: set scheduled_at. To publish: call requestPublishConfirmation afterwards.',
+                            'post_type must be "text", "article_link" (include article_url), or "image" (attach media separately).',
+                            'Scope: social:write.',
+                        ]),
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['post_body', 'post_type'],
+                            'properties' => [
+                                'title_internal'    => ['type' => 'string', 'maxLength' => 255, 'description' => 'Internal label (not posted)'],
+                                'post_body'         => ['type' => 'string', 'maxLength' => 3000, 'description' => 'The LinkedIn post text'],
+                                'post_type'         => ['type' => 'string', 'enum' => ['text', 'article_link', 'image']],
+                                'article_url'       => ['type' => 'string', 'format' => 'uri', 'description' => 'Required when post_type is article_link'],
+                                'hashtags_json'     => ['type' => 'array', 'items' => ['type' => 'string'], 'maxItems' => 30, 'description' => 'Hashtags without # prefix'],
+                                'first_comment_body' => ['type' => 'string', 'maxLength' => 1250, 'description' => 'Optional first comment to post after publishing'],
+                                'scheduled_at'      => ['type' => 'string', 'format' => 'date-time', 'description' => 'ISO-8601 datetime to schedule publishing. CRM dispatches at this time after human approval.'],
+                                'timezone_display'  => ['type' => 'string', 'description' => 'IANA timezone name, e.g. Asia/Karachi'],
+                                'author_member_urn' => ['type' => 'string', 'description' => 'LinkedIn URN of the author account. Omit to use the default connected account.'],
+                            ],
+                            'example' => [
+                                'title_internal' => 'Q2 product update post',
+                                'post_body'      => "Excited to share our latest update!\n\nWe've been working hard on...",
+                                'post_type'      => 'text',
+                                'hashtags_json'  => ['product', 'launch', 'startup'],
+                                'scheduled_at'   => '2026-06-01T09:00:00Z',
+                                'timezone_display' => 'Asia/Karachi',
+                            ],
+                        ]]]],
+                        'responses' => [
+                            '201' => ['description' => 'Draft created', 'content' => ['application/json' => ['schema' => [
+                                'type' => 'object',
+                                'properties' => ['post' => ['$ref' => '#/components/schemas/LinkedInPost']],
+                            ]]]],
+                        ],
+                    ],
+                ],
+
+                '/linkedin/posts/{id}' => [
+                    'get' => [
+                        'operationId' => 'getLinkedInPost',
+                        'summary'     => 'Get a LinkedIn post by ID',
+                        'description' => 'Returns full post details including body, hashtags, schedule, and LinkedIn URN if published. Scope: social:read.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Post detail', 'content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => ['post' => ['$ref' => '#/components/schemas/LinkedInPost']],
+                        ]]]]],
+                    ],
+                    'patch' => [
+                        'operationId' => 'updateLinkedInPost',
+                        'summary'     => 'Update a LinkedIn post draft',
+                        'description' => 'Partially update an editable post (status: draft, ready_for_review, or failed). Changing post_body bumps content_version and invalidates any pending confirmations. Scope: social:write.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'title_internal'    => ['type' => 'string', 'maxLength' => 255],
+                                'post_body'         => ['type' => 'string', 'maxLength' => 3000],
+                                'post_type'         => ['type' => 'string', 'enum' => ['text', 'article_link', 'image']],
+                                'article_url'       => ['type' => 'string', 'format' => 'uri'],
+                                'hashtags_json'     => ['type' => 'array', 'items' => ['type' => 'string']],
+                                'scheduled_at'      => ['type' => 'string', 'format' => 'date-time'],
+                                'timezone_display'  => ['type' => 'string'],
+                            ],
+                        ]]]],
+                        'responses' => ['200' => ['description' => 'Post updated']],
+                    ],
+                    'delete' => [
+                        'operationId' => 'deleteLinkedInPost',
+                        'summary'     => 'Delete a LinkedIn post draft',
+                        'description' => 'Soft-deletes an editable draft. Cannot delete published posts. Scope: social:write.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Post deleted']],
+                    ],
+                ],
+
+                '/linkedin/posts/{id}/request-confirmation' => [
+                    'post' => [
+                        'operationId' => 'requestPublishConfirmation',
+                        'summary'     => 'Request human approval to publish or schedule a post',
+                        'description' => implode(' ', [
+                            'Creates a confirmation request the human must approve in the CRM before the post goes live.',
+                            'NEVER call this and assume the post will be published — the human can reject it.',
+                            'For scheduled posts: action=schedule + scheduled_at.',
+                            'For immediate publishing: action=publish_now.',
+                            'Returns a confirmation_token. Poll getConfirmationStatus to check approval.',
+                            'Scope: social:publish.',
+                        ]),
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['action'],
+                            'properties' => [
+                                'action'       => ['type' => 'string', 'enum' => ['publish_now', 'schedule'], 'description' => 'publish_now dispatches immediately after human approval. schedule queues for scheduled_at time.'],
+                                'scheduled_at' => ['type' => 'string', 'format' => 'date-time', 'description' => 'Required when action=schedule. Must be a future datetime.'],
+                                'timezone'     => ['type' => 'string', 'description' => 'IANA timezone for display, e.g. Asia/Karachi'],
+                            ],
+                            'example' => ['action' => 'schedule', 'scheduled_at' => '2026-06-01T09:00:00Z', 'timezone' => 'Asia/Karachi'],
+                        ]]]],
+                        'responses' => [
+                            '201' => ['description' => 'Confirmation created — awaiting human approval', 'content' => ['application/json' => ['schema' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'confirmation_token' => ['type' => 'string'],
+                                    'expires_at'         => ['type' => 'string', 'format' => 'date-time'],
+                                    'message'            => ['type' => 'string'],
+                                ],
+                            ]]]],
+                        ],
+                    ],
+                ],
+
+                '/linkedin/posts/{id}/provider-status' => [
+                    'get' => [
+                        'operationId' => 'getLinkedInProviderStatus',
+                        'summary'     => 'Check if a post is live on LinkedIn',
+                        'description' => 'Queries LinkedIn directly for the post lifecycle state. Returns exists_on_linkedin and post_url. Scope: social:read.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Provider status']],
+                    ],
+                ],
+
+                // ── Confirmations ─────────────────────────────────────────────
+                '/linkedin/confirmations/{token}' => [
+                    'get' => [
+                        'operationId' => 'getConfirmationStatus',
+                        'summary'     => 'Poll a publish confirmation status',
+                        'description' => 'Returns current status: pending (awaiting human approval), approved, rejected, used, or expired. If approved and action=publish_now, the CRM dispatches the publish job automatically. Scope: social:read.',
+                        'parameters'  => [['name' => 'token', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid']]],
+                        'responses'   => ['200' => ['description' => 'Confirmation status', 'content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => ['confirmation' => ['$ref' => '#/components/schemas/Confirmation']],
+                        ]]]]],
+                    ],
+                ],
+
+                // ── Media ─────────────────────────────────────────────────────
+                '/linkedin/posts/{postId}/media' => [
+                    'post' => [
+                        'operationId' => 'attachMediaToPost',
+                        'summary'     => 'Associate a CRM media asset with a post',
+                        'description' => 'Links a pre-uploaded CRM media asset (from the Media Library) to a post. The asset must be approved. For image posts, the CRM will upload it to LinkedIn automatically when publishing. Scope: social:write.',
+                        'parameters'  => [['name' => 'postId', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['asset_id'],
+                            'properties' => [
+                                'asset_id'         => ['type' => 'integer', 'description' => 'ID of the approved media asset in the CRM Media Library'],
+                                'display_order'    => ['type' => 'integer', 'minimum' => 0, 'default' => 0],
+                                'is_featured'      => ['type' => 'boolean', 'default' => false],
+                                'alt_text_override' => ['type' => 'string', 'maxLength' => 1000],
+                            ],
+                        ]]]],
+                        'responses' => ['200' => ['description' => 'Asset attached to post']],
+                    ],
+                ],
+
+                // ── Analytics ─────────────────────────────────────────────────
+                '/linkedin/analytics/dashboard' => [
+                    'get' => [
+                        'operationId' => 'getLinkedInInsightsDashboard',
+                        'summary'     => 'LinkedIn insights dashboard',
+                        'description' => 'Returns follower count and latest metrics (impressions, likes, clicks, comments) for the 10 most recent published posts per connected account. Scope: social:analytics.',
+                        'responses'   => ['200' => ['description' => 'Insights dashboard data']],
+                    ],
+                ],
+
+                '/linkedin/analytics/posts/{postId}' => [
+                    'get' => [
+                        'operationId' => 'getLinkedInPostMetrics',
+                        'summary'     => 'Get analytics for a specific post',
+                        'description' => 'Returns stored metrics (impressions, clicks, likes, comments, shares, engagement rate). Synced hourly. Scope: social:analytics.',
+                        'parameters'  => [['name' => 'postId', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Post metrics']],
+                    ],
+                ],
+
+            ],
+        ];
+
+        return response()->json($schema)
+            ->header('Access-Control-Allow-Origin', '*')
+            ->header('Content-Type', 'application/json; charset=utf-8');
+    }
 }

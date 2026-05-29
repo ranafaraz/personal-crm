@@ -38,15 +38,28 @@
     @endif
 
     {{-- OpenAPI / Setup info --}}
-    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm text-blue-800 space-y-2">
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 text-sm text-blue-800 space-y-3">
         <p class="font-semibold text-blue-900">Custom GPT Actions setup</p>
         <ol class="list-decimal list-inside space-y-1">
-            <li>Create an API client below (source type: <code>custom_gpt</code>).</li>
+            <li>Create an API client below with the scopes you need.</li>
             <li>Copy the generated API key (shown once).</li>
-            <li>In your Custom GPT → Actions → Add action → import schema from URL:</li>
+            <li>In your Custom GPT → Actions → Add action → import schema from the URL for the GPT you're building:</li>
         </ol>
-        <code class="block bg-white border border-blue-200 rounded px-3 py-1 font-mono text-xs break-all">{{ url('/openapi/gpt-actions.json') }}</code>
-        <p class="mt-1">Set <strong>Authentication</strong> → API Key → Custom header → <code>X-Api-Key</code> → paste your key.</p>
+
+        <div class="space-y-2">
+            <div>
+                <p class="font-medium text-blue-900 mb-0.5">CRM Actions (contacts, emails, opportunities)</p>
+                <p class="text-xs text-blue-600 mb-1">Scopes: dashboard:read, contacts:*, opportunities:*, drafts:*, follow-ups:*</p>
+                <code class="block bg-white border border-blue-200 rounded px-3 py-1 font-mono text-xs break-all">{{ url('/openapi/gpt-actions.json') }}</code>
+            </div>
+            <div>
+                <p class="font-medium text-blue-900 mb-0.5">LinkedIn Social Studio (post drafts, scheduling, analytics)</p>
+                <p class="text-xs text-blue-600 mb-1">Scopes: social:read, social:write, social:publish, social:analytics</p>
+                <code class="block bg-white border border-blue-200 rounded px-3 py-1 font-mono text-xs break-all">{{ url('/openapi/social-gpt-actions.json') }}</code>
+            </div>
+        </div>
+
+        <p>Set <strong>Authentication</strong> → API Key → Custom header → <code>X-Api-Key</code> → paste your key.</p>
     </div>
 
     {{-- Existing clients --}}

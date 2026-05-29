@@ -280,6 +280,9 @@ Route::middleware('auth')->prefix('social-studio')->name('social-studio.')->grou
 Route::get('/openapi/gpt-actions.json', [OpenApiController::class, 'gptActions'])
     ->name('openapi.gpt-actions');
 
+Route::get('/openapi/social-gpt-actions.json', [OpenApiController::class, 'socialActions'])
+    ->name('openapi.social-gpt-actions');
+
 // ---------------------------------------------------------------------------
 // Integration / API key management (requires auth)
 // ---------------------------------------------------------------------------
