@@ -13,21 +13,26 @@ class SocialPost extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'tenant_id', 'user_id', 'title_internal', 'topic', 'post_body',
+        'tenant_id', 'user_id', 'author_member_urn',
+        'title_internal', 'topic', 'post_body', 'first_comment_body',
         'platform_variant_json', 'post_type', 'article_url',
         'source_notes', 'source_links_json', 'hashtags_json', 'call_to_action',
         'status', 'approval_status', 'approved_at', 'approved_by',
         'scheduled_at', 'timezone_display', 'created_source',
+        'content_version', 'idempotency_key',
+        'linkedin_post_urn', 'linkedin_post_url', 'linkedin_response_metadata',
     ];
 
     protected function casts(): array
     {
         return [
-            'platform_variant_json' => 'array',
-            'source_links_json'     => 'array',
-            'hashtags_json'         => 'array',
-            'approved_at'           => 'datetime',
-            'scheduled_at'          => 'datetime',
+            'platform_variant_json'      => 'array',
+            'source_links_json'          => 'array',
+            'hashtags_json'              => 'array',
+            'linkedin_response_metadata' => 'array',
+            'approved_at'                => 'datetime',
+            'scheduled_at'               => 'datetime',
+            'content_version'            => 'integer',
         ];
     }
 
@@ -54,6 +59,21 @@ class SocialPost extends Model
             ->orderByPivot('display_order');
     }
 
+    public function confirmations(): HasMany
+    {
+        return $this->hasMany(SocialPostConfirmation::class, 'social_post_id');
+    }
+
+    public function analyticsSnapshots(): HasMany
+    {
+        return $this->hasMany(SocialAnalyticsSnapshot::class, 'social_post_id');
+    }
+
+    public function auditEvents(): HasMany
+    {
+        return $this->hasMany(SocialAuditEvent::class, 'social_post_id');
+    }
+
     public function activityLogs(): HasMany
     {
         return $this->hasMany(SocialActivityLog::class, 'subject_id')
@@ -63,6 +83,12 @@ class SocialPost extends Model
     public function isApproved(): bool
     {
         return $this->approval_status === 'approved';
+    }
+
+    /** Increment content_version and body_hash on content changes. */
+    public function bumpVersion(): void
+    {
+        $this->increment('content_version');
     }
 
     public function isEditable(): bool

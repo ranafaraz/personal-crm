@@ -14,6 +14,11 @@ use App\Http\Controllers\Api\Gpt\V1\SignatureController;
 use App\Http\Controllers\Api\Gpt\V1\AttachmentController;
 use App\Http\Controllers\Api\Gpt\V1\DraftAttachmentController;
 use App\Http\Controllers\Api\Gpt\V1\DraftPreviewController;
+use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInAccountController;
+use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInPostController;
+use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInMediaController;
+use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInConfirmationController;
+use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInAnalyticsController;
 use App\Http\Controllers\Api\Social\AiDraftController as SocialAiDraftController;
 use Illuminate\Support\Facades\Route;
 
@@ -126,12 +131,63 @@ Route::prefix('gpt/v1')
     });
 
 // ---------------------------------------------------------------------------
-// Social Studio AI draft ingestion  –  /api/social/v1
-// Drafts only — NEVER auto-publishes. Human approval required.
+// Social Studio API  –  /api/social/v1
+// GPT may create/update drafts and request confirmations.
+// NEVER auto-publishes — explicit human approval required for all publishing.
 // ---------------------------------------------------------------------------
 Route::prefix('social/v1')
     ->middleware(['api.client', 'api.log', 'throttle:30,1'])
     ->group(function () {
+
+        // Legacy draft ingestion (GPT connector)
         Route::get('drafts', [SocialAiDraftController::class, 'index']);
         Route::post('drafts', [SocialAiDraftController::class, 'store'])->middleware('throttle:10,1');
+
+        // ── LinkedIn Accounts ──────────────────────────────────────────────
+        Route::get('linkedin/accounts', [LinkedInAccountController::class, 'index']);
+        Route::post('linkedin/accounts/{id}/verify', [LinkedInAccountController::class, 'verify'])
+            ->middleware('throttle:10,1');
+
+        // ── LinkedIn Posts (drafts + published) ───────────────────────────
+        Route::get('linkedin/posts', [LinkedInPostController::class, 'index']);
+        Route::post('linkedin/posts', [LinkedInPostController::class, 'store'])
+            ->middleware('throttle:10,1');
+        Route::get('linkedin/posts/{id}', [LinkedInPostController::class, 'show']);
+        Route::patch('linkedin/posts/{id}', [LinkedInPostController::class, 'update'])
+            ->middleware('throttle:10,1');
+        Route::delete('linkedin/posts/{id}', [LinkedInPostController::class, 'destroy']);
+
+        // Confirmation request (human must approve before any publish action)
+        Route::post('linkedin/posts/{id}/request-confirmation', [LinkedInPostController::class, 'requestConfirmation'])
+            ->middleware('throttle:5,1');
+
+        // Published-post management (requires approved confirmation)
+        Route::patch('linkedin/posts/{id}/published', [LinkedInPostController::class, 'updatePublished'])
+            ->middleware('throttle:5,1');
+        Route::delete('linkedin/posts/{id}/published', [LinkedInPostController::class, 'deletePublished'])
+            ->middleware('throttle:5,1');
+        Route::get('linkedin/posts/{id}/provider-status', [LinkedInPostController::class, 'providerStatus']);
+
+        // ── LinkedIn Media ────────────────────────────────────────────────
+        Route::get('linkedin/posts/{postId}/media', [LinkedInMediaController::class, 'index']);
+        Route::post('linkedin/posts/{postId}/media', [LinkedInMediaController::class, 'attach'])
+            ->middleware('throttle:10,1');
+        Route::delete('linkedin/posts/{postId}/media/{assetId}', [LinkedInMediaController::class, 'detach']);
+        Route::post('linkedin/posts/{postId}/media/{assetId}/upload-to-linkedin', [LinkedInMediaController::class, 'uploadToLinkedIn'])
+            ->middleware('throttle:5,1');
+
+        // ── Confirmations ─────────────────────────────────────────────────
+        Route::get('linkedin/confirmations/{token}', [LinkedInConfirmationController::class, 'show']);
+        Route::post('linkedin/confirmations/{token}/approve', [LinkedInConfirmationController::class, 'approve'])
+            ->middleware('throttle:10,1');
+        Route::post('linkedin/confirmations/{token}/reject', [LinkedInConfirmationController::class, 'reject'])
+            ->middleware('throttle:10,1');
+
+        // ── Analytics ─────────────────────────────────────────────────────
+        Route::get('linkedin/analytics/dashboard', [LinkedInAnalyticsController::class, 'insightsDashboard']);
+        Route::get('linkedin/analytics/accounts/{accountId}/aggregate', [LinkedInAnalyticsController::class, 'aggregateMetrics']);
+        Route::get('linkedin/analytics/accounts/{accountId}/followers', [LinkedInAnalyticsController::class, 'followerMetrics']);
+        Route::get('linkedin/analytics/posts/{postId}', [LinkedInAnalyticsController::class, 'postMetrics']);
+        Route::post('linkedin/analytics/accounts/{accountId}/sync', [LinkedInAnalyticsController::class, 'syncNow'])
+            ->middleware('throttle:5,1');
     });

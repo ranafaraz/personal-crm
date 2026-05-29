@@ -10,9 +10,10 @@ class SocialAccount extends Model
 {
     protected $fillable = [
         'tenant_id', 'user_id', 'provider_id', 'social_oauth_app_id',
-        'provider_account_urn', 'display_name',
+        'provider_account_urn', 'display_name', 'public_profile_url',
         'access_token_encrypted', 'refresh_token_encrypted',
         'token_expires_at', 'scopes_json',
+        'granted_scopes', 'missing_scopes', 'capabilities',
         'status', 'last_verified_at', 'metadata_json', 'is_default',
     ];
 
@@ -24,6 +25,9 @@ class SocialAccount extends Model
             'token_expires_at'        => 'datetime',
             'last_verified_at'        => 'datetime',
             'scopes_json'             => 'array',
+            'granted_scopes'          => 'array',
+            'missing_scopes'          => 'array',
+            'capabilities'            => 'array',
             'metadata_json'           => 'array',
             'is_default'              => 'boolean',
         ];

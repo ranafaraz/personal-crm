@@ -33,6 +33,7 @@ use App\Http\Controllers\SocialStudio\DashboardController as SocialDashboardCont
 use App\Http\Controllers\SocialStudio\MediaController as SocialMediaController;
 use App\Http\Controllers\SocialStudio\OAuthAppController as SocialOAuthAppController;
 use App\Http\Controllers\SocialStudio\PostController as SocialPostController;
+use App\Http\Controllers\SocialStudio\InsightsController as SocialInsightsController;
 use App\Http\Controllers\SocialStudio\PublishedController as SocialPublishedController;
 use Illuminate\Support\Facades\Route;
 
@@ -259,6 +260,9 @@ Route::middleware('auth')->prefix('social-studio')->name('social-studio.')->grou
 
     // Published
     Route::get('published', [SocialPublishedController::class, 'index'])->name('published');
+
+    // Insights
+    Route::get('insights', [SocialInsightsController::class, 'index'])->name('insights');
 
     // Media Library
     Route::get('media', [SocialMediaController::class, 'index'])->name('media.index');

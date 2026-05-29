@@ -16,8 +16,9 @@ class SocialMediaAsset extends Model
 
     protected $fillable = [
         'tenant_id', 'user_id', 'filename', 'mime_type', 'size_bytes',
-        'storage_path', 'thumbnail_path', 'alt_text', 'caption_or_prompt_note',
-        'rights_status', 'approval_status',
+        'sha256_hash', 'storage_path', 'thumbnail_path', 'alt_text',
+        'caption_or_prompt_note', 'rights_status', 'approval_status',
+        'linkedin_media_urn', 'linkedin_upload_status',
     ];
 
     protected function casts(): array

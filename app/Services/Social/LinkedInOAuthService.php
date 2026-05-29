@@ -9,10 +9,18 @@ use App\Models\SocialProvider;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class LinkedInOAuthService
 {
+    private const CAPABILITY_SCOPES = [
+        'can_post'             => ['w_member_social'],
+        'can_read_posts'       => ['r_member_social'],
+        'can_post_analytics'   => ['r_member_postAnalytics'],
+        'can_profile_analytics' => ['r_member_profileAnalytics'],
+    ];
+
+    public function __construct(private LinkedInClient $client) {}
+
     public function authorizationUrl(SocialOAuthApp $app, string $state): string
     {
         return 'https://www.linkedin.com/oauth/v2/authorization?' . http_build_query([
@@ -68,7 +76,7 @@ class LinkedInOAuthService
                 }
             }
         } catch (ConnectionException) {
-            // fall through
+            // fall through to legacy endpoint
         }
 
         $me = Http::withToken($accessToken)
@@ -93,20 +101,22 @@ class LinkedInOAuthService
 
     /**
      * Create or update the SocialAccount record after successful OAuth.
-     * One account per user per OAuth app.
+     * Introspects the token to get authoritative granted scopes, computes missing
+     * scopes and capability flags, then persists everything on the account.
      */
     public function storeConnection(User $user, SocialOAuthApp $app, array $tokenData, array $identity): SocialAccount
     {
         $provider = SocialProvider::where('key', 'linkedin')->firstOrFail();
 
-        $expiresAt     = isset($tokenData['expires_in'])
+        $expiresAt = isset($tokenData['expires_in'])
             ? now()->addSeconds((int) $tokenData['expires_in'])
             : null;
-        $grantedScopes = isset($tokenData['scope'])
-            ? explode(',', $tokenData['scope'])
-            : [];
 
-        // If this is the first account for this user+provider, make it default
+        // Introspect for authoritative scopes; fall back to exchange response
+        $grantedScopes = $this->resolveGrantedScopes($tokenData, $app);
+        $missingScopes = $this->computeMissingScopes($grantedScopes, $app);
+        $capabilities  = $this->computeCapabilities($grantedScopes);
+
         $isFirstAccount = ! SocialAccount::where('user_id', $user->id)
             ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
             ->exists();
@@ -123,6 +133,9 @@ class LinkedInOAuthService
                 'refresh_token_encrypted' => $tokenData['refresh_token'] ?? null,
                 'token_expires_at'        => $expiresAt,
                 'scopes_json'             => $grantedScopes,
+                'granted_scopes'          => $grantedScopes,
+                'missing_scopes'          => $missingScopes,
+                'capabilities'            => $capabilities,
                 'status'                  => 'connected',
                 'last_verified_at'        => now(),
                 'is_default'              => $isFirstAccount || $app->is_default,
@@ -140,6 +153,44 @@ class LinkedInOAuthService
         return $account;
     }
 
+    /**
+     * Re-verify an existing account: introspect token, refresh scopes and capabilities.
+     */
+    public function verifyAccount(SocialAccount $account, SocialOAuthApp $app): array
+    {
+        $token = $account->access_token_encrypted;
+
+        $introspection = $this->client->introspectToken(
+            $token,
+            $app->client_id,
+            $app->client_secret_encrypted
+        );
+
+        if (! ($introspection['active'] ?? false)) {
+            $account->update(['status' => 'reauthorization_required']);
+            return ['active' => false, 'granted_scopes' => [], 'missing_scopes' => [], 'capabilities' => []];
+        }
+
+        $grantedScopes = $this->parseScopeString($introspection['scope'] ?? '');
+        $missingScopes = $this->computeMissingScopes($grantedScopes, $app);
+        $capabilities  = $this->computeCapabilities($grantedScopes);
+
+        $account->update([
+            'granted_scopes'  => $grantedScopes,
+            'missing_scopes'  => $missingScopes,
+            'capabilities'    => $capabilities,
+            'last_verified_at' => now(),
+            'status'          => 'connected',
+        ]);
+
+        return [
+            'active'        => true,
+            'granted_scopes' => $grantedScopes,
+            'missing_scopes' => $missingScopes,
+            'capabilities'  => $capabilities,
+        ];
+    }
+
     public function disconnect(SocialAccount $account): void
     {
         $userId   = $account->user_id;
@@ -152,7 +203,6 @@ class LinkedInOAuthService
             'token_expires_at'        => null,
         ]);
 
-        // If this was the default, promote another connected account
         if ($account->is_default) {
             $next = SocialAccount::where('user_id', $userId)
                 ->where('id', '!=', $account->id)
@@ -167,6 +217,54 @@ class LinkedInOAuthService
             SocialAccount::class, $account->id,
             'LinkedIn account disconnected by user'
         );
+    }
+
+    // ── Scope / capability helpers ────────────────────────────────────────────
+
+    private function resolveGrantedScopes(array $tokenData, SocialOAuthApp $app): array
+    {
+        try {
+            $introspection = $this->client->introspectToken(
+                $tokenData['access_token'],
+                $app->client_id,
+                $app->client_secret_encrypted
+            );
+
+            if (! empty($introspection['scope'])) {
+                return $this->parseScopeString($introspection['scope']);
+            }
+        } catch (\Throwable) {
+            // Non-fatal: fall back to exchange response scope
+        }
+
+        return isset($tokenData['scope'])
+            ? $this->parseScopeString($tokenData['scope'])
+            : [];
+    }
+
+    private function computeMissingScopes(array $grantedScopes, SocialOAuthApp $app): array
+    {
+        $requested = $this->parseScopeString($app->scopes ?? '');
+        return array_values(array_diff($requested, $grantedScopes));
+    }
+
+    private function computeCapabilities(array $grantedScopes): array
+    {
+        $caps = [];
+        foreach (self::CAPABILITY_SCOPES as $capability => $required) {
+            $caps[$capability] = count(array_intersect($required, $grantedScopes)) === count($required);
+        }
+        return $caps;
+    }
+
+    private function parseScopeString(string $scopeString): array
+    {
+        if (empty($scopeString)) {
+            return [];
+        }
+        // LinkedIn returns scopes space-separated or comma-separated
+        $delimiters = str_contains($scopeString, ',') ? ',' : ' ';
+        return array_values(array_filter(array_map('trim', explode($delimiters, $scopeString))));
     }
 
     private function sanitizeErrorResponse(string $body): string

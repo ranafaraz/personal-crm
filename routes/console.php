@@ -16,3 +16,7 @@ Schedule::command('crm:reset-daily-counters')->dailyAt('00:00');
 
 // Publish scheduled social posts every 5 minutes (only approved posts are dispatched)
 Schedule::command('social:publish-due-posts')->everyFiveMinutes();
+
+// Sync LinkedIn analytics: recent posts every hour, full sweep daily at 03:00
+Schedule::command('social:sync-linkedin-analytics --hours=72')->hourly();
+Schedule::command('social:sync-linkedin-analytics --hours=720')->dailyAt('03:00');

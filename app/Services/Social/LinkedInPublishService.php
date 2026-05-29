@@ -2,21 +2,19 @@
 
 namespace App\Services\Social;
 
-use App\Models\SocialActivityLog;
 use App\Models\SocialAccount;
-use App\Models\SocialMediaAsset;
+use App\Models\SocialActivityLog;
 use App\Models\SocialPost;
 use App\Models\SocialPostTarget;
 use App\Models\SocialPublishJob;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class LinkedInPublishService
 {
-    private const API_BASE    = 'https://api.linkedin.com/v2';
-    private const RESTLI_HDR  = ['X-Restli-Protocol-Version' => '2.0.0'];
-    private const PERMANENT_ERROR_CODES = [400, 401, 403, 422];
+    public function __construct(
+        private LinkedInPostsService $posts,
+        private LinkedInMediaService $media,
+    ) {}
 
     /**
      * Attempt to publish a target post via LinkedIn.
@@ -27,10 +25,8 @@ class LinkedInPublishService
         $post    = $target->post;
         $account = $target->account;
 
-        // Safety checks
         $this->guardPublish($target, $post, $account);
 
-        // Increment attempt count via a new job record
         $job = SocialPublishJob::create([
             'social_post_target_id' => $target->id,
             'scheduled_at'          => now(),
@@ -43,49 +39,54 @@ class LinkedInPublishService
         $post->update(['status' => 'publishing']);
 
         try {
-            $accessToken = $account->access_token_encrypted;
-            $authorUrn   = $account->provider_account_urn;
+            $token     = $account->access_token_encrypted;
+            $authorUrn = $account->provider_account_urn;
 
-            $remoteId = match ($post->post_type) {
-                'text'         => $this->publishText($accessToken, $authorUrn, $post),
-                'article_link' => $this->publishArticle($accessToken, $authorUrn, $post),
-                'image'        => $this->publishImage($accessToken, $authorUrn, $post),
-                default        => throw new \RuntimeException("Unsupported post_type: {$post->post_type}"),
-            };
+            // For image posts: ensure all approved assets are uploaded to LinkedIn first
+            if ($post->post_type === 'image') {
+                $this->media->uploadMissingAssetsForPost($token, $authorUrn, $post);
+            }
+
+            $postUrn = $this->posts->publish($token, $post, $authorUrn);
+
+            $postUrl = $this->buildPostUrl($postUrn);
 
             $target->update([
-                'status'        => 'published',
-                'remote_post_id' => $remoteId,
-                'published_at'  => now(),
-                'error_code'    => null,
-                'error_message' => null,
+                'status'         => 'published',
+                'remote_post_id' => $postUrn,
+                'published_at'   => now(),
+                'error_code'     => null,
+                'error_message'  => null,
             ]);
-            $post->update(['status' => 'published']);
+
+            $post->update([
+                'status'            => 'published',
+                'linkedin_post_urn' => $postUrn,
+                'linkedin_post_url' => $postUrl,
+                'linkedin_response_metadata' => ['published_at' => now()->toIso8601String()],
+            ]);
 
             $job->update([
                 'job_status'                       => 'succeeded',
-                'provider_response_sanitized_json' => ['remote_post_id' => $remoteId],
+                'provider_response_sanitized_json' => ['post_urn' => $postUrn],
             ]);
 
             SocialActivityLog::record(
                 $post->user_id, $post->tenant_id,
                 'linkedin_published',
                 SocialPost::class, $post->id,
-                "Published to LinkedIn. Remote ID: {$remoteId}"
+                "Published to LinkedIn. URN: {$postUrn}"
             );
 
         } catch (\Throwable $e) {
             $sanitizedMsg = $this->sanitizeError($e->getMessage());
-            $errorCode    = method_exists($e, 'getCode') ? (string) $e->getCode() : null;
             $isPermanent  = $e instanceof LinkedInPermanentException;
 
             $target->update([
                 'status'        => 'failed',
-                'error_code'    => $errorCode,
+                'error_code'    => (string) $e->getCode(),
                 'error_message' => $sanitizedMsg,
             ]);
-
-            // Only reset parent post to 'failed'; do not re-schedule automatically
             $post->update(['status' => 'failed']);
 
             $nextRetry = (! $isPermanent && $job->attempt_count < $job->max_attempts)
@@ -98,7 +99,6 @@ class LinkedInPublishService
                 'provider_response_sanitized_json' => ['error' => $sanitizedMsg],
             ]);
 
-            // Mark account as needing reauth on auth failures
             if ($e instanceof LinkedInAuthException) {
                 $account->update(['status' => 'reauthorization_required']);
                 SocialActivityLog::record(
@@ -126,204 +126,18 @@ class LinkedInPublishService
         return $target->fresh();
     }
 
-    // ── Text post ─────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private function publishText(string $token, string $authorUrn, SocialPost $post): string
+    private function buildPostUrl(string $postUrn): ?string
     {
-        $visibility = $post->targets->first()?->platform_metadata_json['visibility'] ?? 'PUBLIC';
-
-        $payload = [
-            'author'          => $authorUrn,
-            'lifecycleState'  => 'PUBLISHED',
-            'specificContent' => [
-                'com.linkedin.ugc.ShareContent' => [
-                    'shareCommentary'   => ['text' => $this->buildBody($post)],
-                    'shareMediaCategory' => 'NONE',
-                ],
-            ],
-            'visibility' => [
-                'com.linkedin.ugc.MemberNetworkVisibility' => $visibility,
-            ],
-        ];
-
-        return $this->postUgc($token, $payload);
-    }
-
-    // ── Article / link share ──────────────────────────────────────────────────
-
-    private function publishArticle(string $token, string $authorUrn, SocialPost $post): string
-    {
-        if (empty($post->article_url)) {
-            throw new LinkedInPermanentException('Article URL is required for article_link post type.');
+        // URN format: urn:li:share:7XXXXXXXXXXXXXXXXXXX
+        if (preg_match('/urn:li:share:(\d+)/', $postUrn, $m)) {
+            return "https://www.linkedin.com/feed/update/urn:li:share:{$m[1]}/";
         }
-
-        $visibility = $post->targets->first()?->platform_metadata_json['visibility'] ?? 'PUBLIC';
-
-        $payload = [
-            'author'         => $authorUrn,
-            'lifecycleState' => 'PUBLISHED',
-            'specificContent' => [
-                'com.linkedin.ugc.ShareContent' => [
-                    'shareCommentary'    => ['text' => $this->buildBody($post)],
-                    'shareMediaCategory' => 'ARTICLE',
-                    'media'              => [[
-                        'status'      => 'READY',
-                        'originalUrl' => $post->article_url,
-                    ]],
-                ],
-            ],
-            'visibility' => [
-                'com.linkedin.ugc.MemberNetworkVisibility' => $visibility,
-            ],
-        ];
-
-        return $this->postUgc($token, $payload);
-    }
-
-    // ── Image post (register upload → upload → post) ──────────────────────────
-
-    private function publishImage(string $token, string $authorUrn, SocialPost $post): string
-    {
-        $asset = $post->mediaAssets()
-            ->wherePivot('is_featured', true)
-            ->where('approval_status', 'approved')
-            ->first();
-
-        if (! $asset) {
-            $asset = $post->mediaAssets()
-                ->where('approval_status', 'approved')
-                ->first();
+        if (preg_match('/urn:li:ugcPost:(\d+)/', $postUrn, $m)) {
+            return "https://www.linkedin.com/feed/update/urn:li:ugcPost:{$m[1]}/";
         }
-
-        if (! $asset) {
-            throw new LinkedInPermanentException('No approved media asset found for image post.');
-        }
-
-        if (empty($asset->alt_text)) {
-            throw new LinkedInPermanentException('Image post requires alt text on the media asset.');
-        }
-
-        $assetUrn = $this->uploadImageToLinkedIn($token, $authorUrn, $asset);
-
-        $visibility = $post->targets->first()?->platform_metadata_json['visibility'] ?? 'PUBLIC';
-
-        $payload = [
-            'author'         => $authorUrn,
-            'lifecycleState' => 'PUBLISHED',
-            'specificContent' => [
-                'com.linkedin.ugc.ShareContent' => [
-                    'shareCommentary'    => ['text' => $this->buildBody($post)],
-                    'shareMediaCategory' => 'IMAGE',
-                    'media'              => [[
-                        'status'      => 'READY',
-                        'description' => ['text' => $asset->alt_text],
-                        'media'       => $assetUrn,
-                        'title'       => ['text' => $post->title_internal],
-                    ]],
-                ],
-            ],
-            'visibility' => [
-                'com.linkedin.ugc.MemberNetworkVisibility' => $visibility,
-            ],
-        ];
-
-        return $this->postUgc($token, $payload);
-    }
-
-    private function uploadImageToLinkedIn(string $token, string $authorUrn, SocialMediaAsset $asset): string
-    {
-        // Step 1: Register upload
-        $registerResp = Http::withToken($token)
-            ->withHeaders(self::RESTLI_HDR)
-            ->post(self::API_BASE . '/assets?action=registerUpload', [
-                'registerUploadRequest' => [
-                    'recipes'                  => ['urn:li:digitalmediaRecipe:feedshare-image'],
-                    'owner'                    => $authorUrn,
-                    'serviceRelationships'     => [[
-                        'relationshipType' => 'OWNER',
-                        'identifier'       => 'urn:li:userGeneratedContent',
-                    ]],
-                ],
-            ]);
-
-        $this->assertSuccessful($registerResp, 'LinkedIn asset register failed');
-
-        $uploadUrl = $registerResp->json('value.uploadMechanism.com\\.linkedin\\.digitalmedia\\.uploading\\.MediaUploadHttpRequest.uploadUrl')
-            ?? data_get($registerResp->json(), 'value.uploadMechanism.*.uploadUrl');
-
-        $liAssetUrn = $registerResp->json('value.asset');
-
-        if (! $uploadUrl || ! $liAssetUrn) {
-            throw new \RuntimeException('LinkedIn register upload response missing uploadUrl or asset URN');
-        }
-
-        // Step 2: Upload image binary
-        $filePath = Storage::disk('public')->path($asset->storage_path);
-        $fileContents = file_get_contents($filePath);
-
-        if ($fileContents === false) {
-            throw new LinkedInPermanentException("Cannot read media asset file: {$asset->storage_path}");
-        }
-
-        $uploadResp = Http::withToken($token)
-            ->withHeaders(['Content-Type' => $asset->mime_type])
-            ->withBody($fileContents, $asset->mime_type)
-            ->put($uploadUrl);
-
-        if (! in_array($uploadResp->status(), [200, 201])) {
-            throw new \RuntimeException('LinkedIn image upload failed with status ' . $uploadResp->status());
-        }
-
-        return $liAssetUrn;
-    }
-
-    // ── Shared helpers ────────────────────────────────────────────────────────
-
-    private function postUgc(string $token, array $payload): string
-    {
-        $response = Http::withToken($token)
-            ->withHeaders(self::RESTLI_HDR)
-            ->post(self::API_BASE . '/ugcPosts', $payload);
-
-        if ($response->status() === 401 || $response->status() === 403) {
-            throw new LinkedInAuthException('LinkedIn auth rejected: ' . $response->status());
-        }
-
-        $this->assertSuccessful($response, 'LinkedIn UGC post creation failed');
-
-        $remoteId = $response->header('x-restli-id')
-            ?: $response->header('X-RestLi-Id')
-            ?: $response->json('id')
-            ?: 'unknown';
-
-        return $remoteId;
-    }
-
-    private function assertSuccessful(\Illuminate\Http\Client\Response $response, string $context): void
-    {
-        if (! $response->successful()) {
-            $status = $response->status();
-            $body   = $this->sanitizeError($response->body());
-
-            if (in_array($status, self::PERMANENT_ERROR_CODES)) {
-                throw new LinkedInPermanentException("{$context} [{$status}]: {$body}");
-            }
-
-            throw new \RuntimeException("{$context} [{$status}]: {$body}");
-        }
-    }
-
-    private function buildBody(SocialPost $post): string
-    {
-        $body = $post->post_body;
-        $tags = $post->hashtagString();
-        return $tags ? "{$body}\n\n{$tags}" : $body;
-    }
-
-    private function sanitizeError(string $message): string
-    {
-        // Remove any bearer token values that may appear in error details
-        return preg_replace('/Bearer\s+[A-Za-z0-9\-._~+\/]+=*/i', 'Bearer [REDACTED]', $message) ?? $message;
+        return null;
     }
 
     private function guardPublish(SocialPostTarget $target, SocialPost $post, SocialAccount $account): void
@@ -344,7 +158,9 @@ class LinkedInPublishService
             throw new LinkedInPermanentException('Post has not been approved.');
         }
     }
-}
 
-class LinkedInAuthException extends \RuntimeException {}
-class LinkedInPermanentException extends \RuntimeException {}
+    private function sanitizeError(string $message): string
+    {
+        return preg_replace('/Bearer\s+[A-Za-z0-9\-._~+\/]+=*/i', 'Bearer [REDACTED]', $message) ?? $message;
+    }
+}
