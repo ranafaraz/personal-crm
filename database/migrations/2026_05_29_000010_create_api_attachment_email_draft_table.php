@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::dropIfExists('api_attachment_email_draft');
         Schema::create('api_attachment_email_draft', function (Blueprint $table) {
             $table->id();
             $table->foreignId('email_message_id')->constrained('email_messages')->onDelete('cascade');
