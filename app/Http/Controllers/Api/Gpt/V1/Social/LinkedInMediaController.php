@@ -9,6 +9,11 @@ use App\Models\SocialPost;
 use App\Services\Social\LinkedInMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class LinkedInMediaController extends GptController
 {
@@ -109,6 +114,66 @@ class LinkedInMediaController extends GptController
         return response()->json(['message' => 'Asset attached to post.']);
     }
 
+    /**
+     * Upload an image to the CRM Media Library.
+     * Accepts either a multipart file or an image_url the server downloads.
+     * Returns the asset_id for use with attachMediaToPost.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $user = $this->apiUser($request);
+
+        $data = $request->validate([
+            'file'          => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
+            'image_url'     => 'nullable|url|max:2000',
+            'title'         => 'nullable|string|max:255',
+            'alt_text'      => 'required|string|max:500',
+            'rights_status' => ['nullable', Rule::in(['owned', 'licensed', 'generated', 'unknown'])],
+            'auto_approve'  => 'nullable|boolean',
+        ]);
+
+        if (! $request->hasFile('file') && empty($data['image_url'])) {
+            return response()->json(['error' => 'Provide either a file (multipart) or image_url.'], 422);
+        }
+
+        if ($request->hasFile('file')) {
+            [$storagePath, $displayName, $mime, $size, $hash] =
+                $this->storeUploadedFile($request->file('file'), $user->id, $data['title'] ?? null);
+        } else {
+            [$storagePath, $displayName, $mime, $size, $hash] =
+                $this->downloadFromUrl($data['image_url'], $user->id, $data['title'] ?? null);
+
+            if ($storagePath === null) {
+                return response()->json(['error' => 'Failed to download image from the provided URL.'], 422);
+            }
+        }
+
+        $asset = SocialMediaAsset::create([
+            'tenant_id'              => $user->tenant_id,
+            'user_id'                => $user->id,
+            'filename'               => $displayName,
+            'mime_type'              => $mime,
+            'size_bytes'             => $size,
+            'sha256_hash'            => $hash,
+            'storage_path'           => $storagePath,
+            'alt_text'               => $data['alt_text'],
+            'caption_or_prompt_note' => $data['title'] ?? null,
+            'rights_status'          => $data['rights_status'] ?? 'generated',
+            'approval_status'        => ($data['auto_approve'] ?? true) ? 'approved' : 'pending_review',
+        ]);
+
+        $this->audit($request, 'media_asset_upload', SocialMediaAsset::class, $asset->id, 'low');
+
+        return response()->json([
+            'asset_id'        => $asset->id,
+            'filename'        => $asset->filename,
+            'mime_type'       => $asset->mime_type,
+            'approval_status' => $asset->approval_status,
+            'storage_url'     => $asset->storageUrl(),
+            'alt_text'        => $asset->alt_text,
+        ], 201);
+    }
+
     /** Detach an asset from a post. */
     public function detach(Request $request, int $postId, int $assetId): JsonResponse
     {
@@ -146,15 +211,56 @@ class LinkedInMediaController extends GptController
     private function formatAsset(SocialMediaAsset $a): array
     {
         return [
-            'id'                  => $a->id,
-            'filename'            => $a->filename,
-            'mime_type'           => $a->mime_type,
-            'approval_status'     => $a->approval_status,
-            'linkedin_media_urn'  => $a->linkedin_media_urn,
+            'id'                     => $a->id,
+            'filename'               => $a->filename,
+            'mime_type'              => $a->mime_type,
+            'approval_status'        => $a->approval_status,
+            'linkedin_media_urn'     => $a->linkedin_media_urn,
             'linkedin_upload_status' => $a->linkedin_upload_status,
-            'display_order'       => $a->pivot->display_order ?? 0,
-            'is_featured'         => (bool) ($a->pivot->is_featured ?? false),
-            'alt_text'            => $a->pivot->alt_text_override ?: $a->alt_text,
+            'display_order'          => $a->pivot->display_order ?? 0,
+            'is_featured'            => (bool) ($a->pivot->is_featured ?? false),
+            'alt_text'               => $a->pivot->alt_text_override ?: $a->alt_text,
         ];
+    }
+
+    private function storeUploadedFile(UploadedFile $file, int $userId, ?string $title): array
+    {
+        $ext      = $file->getClientOriginalExtension() ?: 'jpg';
+        $slug     = Str::uuid() . '.' . $ext;
+        $path     = $file->storeAs('social-media/' . $userId, $slug, 'public');
+        $hash     = hash_file('sha256', $file->getRealPath());
+        $display  = $title ?: $file->getClientOriginalName() ?: $slug;
+
+        return [$path, $display, $file->getMimeType(), $file->getSize(), $hash];
+    }
+
+    private function downloadFromUrl(string $url, int $userId, ?string $title): array
+    {
+        try {
+            $response = Http::timeout(20)->get($url);
+        } catch (\Throwable) {
+            return [null, null, null, null, null];
+        }
+
+        if (! $response->successful()) {
+            return [null, null, null, null, null];
+        }
+
+        $body = $response->body();
+        $contentType = $response->header('Content-Type', 'image/jpeg');
+        $ext = match(true) {
+            str_contains($contentType, 'png')  => 'png',
+            str_contains($contentType, 'gif')  => 'gif',
+            str_contains($contentType, 'webp') => 'webp',
+            default                            => 'jpg',
+        };
+
+        $slug        = Str::uuid() . '.' . $ext;
+        $storagePath = 'social-media/' . $userId . '/' . $slug;
+        Storage::disk('public')->put($storagePath, $body);
+
+        $display = $title ?: $slug;
+
+        return [$storagePath, $display, $contentType, strlen($body), hash('sha256', $body)];
     }
 }

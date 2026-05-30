@@ -175,6 +175,10 @@ Route::prefix('social/v1')
         Route::get('linkedin/posts/{id}/provider-status', [LinkedInPostController::class, 'providerStatus'])
             ->middleware('api.scope:social:read');
 
+        // ── CRM Media Library upload (file or URL → asset_id) ────────────
+        Route::post('media', [LinkedInMediaController::class, 'store'])
+            ->middleware(['api.scope:social:write', 'throttle:10,1']);
+
         // ── LinkedIn Media ────────────────────────────────────────────────
         Route::get('linkedin/posts/{postId}/media', [LinkedInMediaController::class, 'index'])
             ->middleware('api.scope:social:read');

@@ -991,6 +991,39 @@ class OpenApiController extends Controller
                     'responses' => ['200' => ['description' => 'Asset attached to post']],
                 ],
             ],
+            '/media' => [
+                'post' => [
+                    'operationId' => 'uploadMediaAsset',
+                    'summary'     => 'Upload an image to the CRM Media Library',
+                    'description' => 'Creates a Media Library asset from a file upload or image URL. Returns asset_id ready for attachMediaToPost. auto_approve defaults to true. Scope: social:write.',
+                    'requestBody' => ['required' => true, 'content' => ['multipart/form-data' => ['schema' => [
+                        'type'     => 'object',
+                        'required' => ['alt_text'],
+                        'properties' => [
+                            'file'          => ['type' => 'string', 'format' => 'binary', 'description' => 'Image file (jpg, png, gif, webp; max 10 MB). Provide file or image_url.'],
+                            'image_url'     => ['type' => 'string', 'format' => 'uri', 'description' => 'URL the server will download. Alternative to file.'],
+                            'title'         => ['type' => 'string', 'maxLength' => 255, 'description' => 'Optional internal label for the asset'],
+                            'alt_text'      => ['type' => 'string', 'maxLength' => 500, 'description' => 'Accessibility alt text for the image (required)'],
+                            'rights_status' => ['type' => 'string', 'enum' => ['owned', 'licensed', 'generated', 'unknown'], 'default' => 'generated'],
+                            'auto_approve'  => ['type' => 'boolean', 'default' => true, 'description' => 'true = approved immediately; false = pending human review'],
+                        ],
+                    ]]]],
+                    'responses' => [
+                        '201' => ['description' => 'Asset created', 'content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'asset_id'        => ['type' => 'integer', 'description' => 'Use this ID with attachMediaToPost'],
+                                'filename'        => ['type' => 'string'],
+                                'mime_type'       => ['type' => 'string'],
+                                'approval_status' => ['type' => 'string', 'enum' => ['approved', 'pending_review']],
+                                'storage_url'     => ['type' => 'string', 'format' => 'uri'],
+                                'alt_text'        => ['type' => 'string'],
+                            ],
+                        ]]]],
+                    ],
+                ],
+            ],
+
             '/linkedin/analytics/dashboard' => [
                 'get' => [
                     'operationId' => 'getLinkedInInsightsDashboard',
