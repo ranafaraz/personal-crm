@@ -18,7 +18,7 @@ jobs:
             set -e
             cd /var/www/crm.dexdevs.com
 
-            echo "=== Create temp API client with full scopes ==="
+            echo "=== Ownership / route diagnostics ==="
             {
               printf '%s\n' '<?php'
               printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
@@ -26,66 +26,21 @@ jobs:
               printf '%s\n' '$app = require "bootstrap/app.php";'
               printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
               printf '%s\n' '$user = \App\Models\User::where("email","ranafarazahmed@gmail.com")->first();'
-              printf '%s\n' '$client = \App\Models\ApiClient::create(["user_id"=>$user->id,"name"=>"DEBUG-TEMP","source_type"=>"custom_gpt","scopes"=>["documents:read","documents:write","attachments:read","attachments:write","drafts:read","drafts:create","followups:read","followups:create","opportunities:read","contacts:read"],"is_active"=>true]);'
-              printf '%s\n' '["raw"=>$raw,"hash"=>$hash,"prefix"=>$prefix] = \App\Models\ApiClientToken::generateRaw();'
-              printf '%s\n' '\App\Models\ApiClientToken::create(["api_client_id"=>$client->id,"user_id"=>$user->id,"name"=>"debug","token_hash"=>$hash,"token_prefix"=>$prefix,"is_active"=>true]);'
-              printf '%s\n' 'echo "CLIENT_ID=".$client->id."\n";'
-              printf '%s\n' 'echo "RAW_TOKEN=".$raw."\n";'
-            } > /tmp/mk_token.php
-            php /tmp/mk_token.php > /tmp/token_out.txt
-            cat /tmp/token_out.txt
-            TOKEN=$(grep RAW_TOKEN /tmp/token_out.txt | cut -d= -f2)
-            CLIENT_ID=$(grep CLIENT_ID /tmp/token_out.txt | cut -d= -f2)
-            rm -f /tmp/mk_token.php /tmp/token_out.txt
-
-            echo "=== Render frontend pages and check for linked documents ==="
-            {
-              printf '%s\n' '<?php'
-              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
-              printf '%s\n' 'require "vendor/autoload.php";'
-              printf '%s\n' '$app = require "bootstrap/app.php";'
-              printf '%s\n' '$kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);'
-              printf '%s\n' '$kernel->bootstrap();'
-              printf '%s\n' '$user = \App\Models\User::where("email","ranafarazahmed@gmail.com")->first();'
-              printf '%s\n' '$app->instance("request", \Illuminate\Http\Request::create("/", "GET"));'
-              printf '%s\n' '\Illuminate\Support\Facades\Auth::guard("web")->setUser($user);'
-              printf '%s\n' 'echo "route_count=".count(\Illuminate\Support\Facades\Route::getRoutes()->getRoutes())."\n";'
-              printf '%s\n' 'echo "auth_check=".(\Illuminate\Support\Facades\Auth::check()?"yes":"no")."\n";'
-              printf '%s\n' '$checks = ['
-              printf '%s\n' '  ["/opportunities/285", "Debug Test Document"],'
-              printf '%s\n' '  ["/contacts/209", "CRM Test Document B"],'
-              printf '%s\n' '  ["/emails/519", "Debug Test Document"],'
-              printf '%s\n' '  ["/follow-ups/14", "CRM Test Document B"],'
-              printf '%s\n' '];'
-              printf '%s\n' 'foreach ($checks as [$path, $needle]) {'
-              printf '%s\n' '    $request = \Illuminate\Http\Request::create($path, "GET");'
-              printf '%s\n' '    $response = $kernel->handle($request);'
-              printf '%s\n' '    $status = $response->getStatusCode();'
-              printf '%s\n' '    $content = $response->getContent();'
-              printf '%s\n' '    $loc = $response->headers->get("Location");'
-              printf '%s\n' '    $found = str_contains($content, $needle) ? "FOUND" : "MISSING";'
-              printf '%s\n' '    echo "$path => HTTP $status, loc=$loc, '"'"'$needle'"'"' => $found, len=".strlen($content)."\n";'
-              printf '%s\n' '    $kernel->terminate($request, $response);'
+              printf '%s\n' 'echo "user_id=".$user->id." tenant_id=".$user->tenant_id."\n";'
+              printf '%s\n' '$opp = \App\Models\Opportunity::find(285);'
+              printf '%s\n' 'echo "opp285: ".($opp ? ("user_id=".$opp->user_id." tenant_id=".$opp->tenant_id) : "NOT FOUND")."\n";'
+              printf '%s\n' '$contact = \App\Models\Contact::find(209);'
+              printf '%s\n' 'echo "contact209: ".($contact ? ("user_id=".$contact->user_id." tenant_id=".$contact->tenant_id) : "NOT FOUND")."\n";'
+              printf '%s\n' '$email = \App\Models\EmailMessage::find(519);'
+              printf '%s\n' 'echo "email519: ".($email ? ("user_id=".$email->user_id." tenant_id=".$email->tenant_id) : "NOT FOUND")."\n";'
+              printf '%s\n' '$fu = \App\Models\FollowUp::find(14);'
+              printf '%s\n' 'echo "followup14: ".($fu ? ("user_id=".$fu->user_id." tenant_id=".$fu->tenant_id) : "NOT FOUND")."\n";'
+              printf '%s\n' 'foreach (["opportunities.show","contacts.show","emails.show","follow-ups.show"] as $name) {'
+              printf '%s\n' '    $route = \Illuminate\Support\Facades\Route::getRoutes()->getByName($name);'
+              printf '%s\n' '    echo "$name => ".($route ? ($route->uri()." [".implode(",", $route->middleware())."]") : "MISSING")."\n";'
               printf '%s\n' '}'
-            } > /tmp/render_check.php
-            php /tmp/render_check.php
-            rm -f /tmp/render_check.php
-
-            echo "=== Recent laravel.log (last 40 lines) ==="
-            tail -40 storage/logs/laravel.log || true
-
-            echo "=== Cleanup temp client ==="
-            {
-              printf '%s\n' '<?php'
-              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
-              printf '%s\n' 'require "vendor/autoload.php";'
-              printf '%s\n' '$app = require "bootstrap/app.php";'
-              printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
-              printf '%s\n' '\App\Models\ApiClientToken::where("api_client_id",'"$CLIENT_ID"')->delete();'
-              printf '%s\n' '\App\Models\ApiClient::where("id",'"$CLIENT_ID"')->delete();'
-              printf '%s\n' 'echo "cleaned up client '"$CLIENT_ID"'\n";'
-            } > /tmp/cleanup.php
-            php /tmp/cleanup.php
-            rm -f /tmp/cleanup.php
+            } > /tmp/diag2.php
+            php /tmp/diag2.php
+            rm -f /tmp/diag2.php
 
             echo "Done."
