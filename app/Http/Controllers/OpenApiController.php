@@ -424,13 +424,6 @@ class OpenApiController extends Controller
                     ],
                 ],
                 '/signatures/{id}' => [
-                    'get' => [
-                        'operationId' => 'getSignature',
-                        'summary'     => 'Get signature by ID',
-                        'description' => 'Scope: signatures:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Signature detail', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Signature']]]]],
-                    ],
                     'patch' => [
                         'operationId' => 'updateSignature',
                         'summary'     => 'Update a signature',
@@ -500,18 +493,9 @@ class OpenApiController extends Controller
                         ],
                     ],
                 ],
-                '/attachments/{id}' => [
-                    'get' => [
-                        'operationId' => 'getAttachment',
-                        'summary'     => 'Get attachment by ID',
-                        'description' => 'Scope: attachments:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Attachment detail', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Attachment']]]]],
-                    ],
-                ],
 
                 // ---------------------------------------------------------------
-                // Documents  (full CRUD + versioning + entity links)
+                // Documents
                 // ---------------------------------------------------------------
                 '/documents' => [
                     'get' => [
@@ -608,21 +592,6 @@ class OpenApiController extends Controller
                         'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
                         'responses'   => ['200' => ['description' => 'Document detail', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']]]]],
                     ],
-                    'patch' => [
-                        'operationId' => 'updateDocument',
-                        'summary'     => 'Update document metadata',
-                        'description' => 'Partial update of name, document_type, or description. Does NOT create a new version — use POST /documents/{id}/versions to add a revised file. Scope: documents:write.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'name'          => ['type' => 'string', 'maxLength' => 500],
-                                'document_type' => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'contract', 'report', 'other']],
-                                'description'   => ['type' => 'string', 'maxLength' => 2000, 'nullable' => true],
-                            ],
-                        ]]]],
-                        'responses' => ['200' => ['description' => 'Document updated']],
-                    ],
                     'delete' => [
                         'operationId' => 'deleteDocument',
                         'summary'     => 'Delete a document',
@@ -631,99 +600,7 @@ class OpenApiController extends Controller
                         'responses'   => ['200' => ['description' => 'Document deleted']],
                     ],
                 ],
-                '/documents/{id}/download' => [
-                    'get' => [
-                        'operationId' => 'downloadDocument',
-                        'summary'     => 'Download the current version of a document',
-                        'description' => 'Streams the file if stored on the server, or returns a JSON object with `download_url` for URL-registered documents. Scope: documents:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => [
-                            '200' => ['description' => 'Binary file stream, or JSON with download_url for external documents'],
-                            '404' => ['description' => 'Document or file not found'],
-                        ],
-                    ],
-                ],
-                '/documents/{id}/versions' => [
-                    'get' => [
-                        'operationId' => 'listDocumentVersions',
-                        'summary'     => 'List all versions of a document',
-                        'description' => 'Returns the full immutable version history, oldest first. Versions are NEVER overwritten. Scope: documents:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Version history', 'content' => ['application/json' => ['schema' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'document_id'        => ['type' => 'integer'],
-                                'current_version_id' => ['type' => 'integer'],
-                                'data'               => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/ApiDocumentVersion']],
-                                'count'              => ['type' => 'integer'],
-                            ],
-                        ]]]]],
-                    ],
-                    'post' => [
-                        'operationId' => 'addDocumentVersion',
-                        'summary'     => 'Add a new version to an existing document',
-                        'description' => "Upload a revised file or register a new URL as the next version. Previous versions remain accessible — history is never overwritten. The new version becomes `current_version`.\n\nAccepts **multipart/form-data** (binary file) or **application/json** (URL registration). Scope: documents:write.",
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'requestBody' => [
-                            'required' => true,
-                            'content'  => [
-                                'multipart/form-data' => ['schema' => [
-                                    'type'     => 'object',
-                                    'required' => ['file'],
-                                    'properties' => [
-                                        'file'          => ['type' => 'string', 'format' => 'binary'],
-                                        'version_notes' => ['type' => 'string', 'maxLength' => 2000],
-                                    ],
-                                ]],
-                                'application/json' => ['schema' => [
-                                    'type'     => 'object',
-                                    'required' => ['public_url', 'mime_type', 'size_bytes'],
-                                    'properties' => [
-                                        'public_url'    => ['type' => 'string', 'format' => 'uri'],
-                                        'mime_type'     => ['type' => 'string'],
-                                        'size_bytes'    => ['type' => 'integer', 'minimum' => 1],
-                                        'checksum'      => ['type' => 'string', 'maxLength' => 64],
-                                        'version_notes' => ['type' => 'string', 'maxLength' => 2000],
-                                    ],
-                                ]],
-                            ],
-                        ],
-                        'responses' => [
-                            '201' => ['description' => 'New version created. Previous versions preserved.'],
-                            '422' => ['description' => 'Validation error'],
-                        ],
-                    ],
-                ],
-                '/documents/{id}/versions/{vid}/download' => [
-                    'get' => [
-                        'operationId' => 'downloadDocumentVersion',
-                        'summary'     => 'Download a specific version of a document',
-                        'description' => 'Streams the file for the given version, or returns JSON with download_url for URL-based versions. Scope: documents:read.',
-                        'parameters'  => [
-                            ['name' => 'id',  'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                            ['name' => 'vid', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer'], 'description' => 'Version record ID (version_id, not version_number)'],
-                        ],
-                        'responses' => [
-                            '200' => ['description' => 'Binary stream or JSON with download_url'],
-                            '404' => ['description' => 'Version not found'],
-                        ],
-                    ],
-                ],
                 '/documents/{id}/links' => [
-                    'get' => [
-                        'operationId' => 'listDocumentLinks',
-                        'summary'     => 'List entity links for a document',
-                        'description' => 'Returns all entity associations (opportunities, contacts, email drafts, follow-ups) for the document. Scope: documents:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Entity links', 'content' => ['application/json' => ['schema' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'document_id' => ['type' => 'integer'],
-                                'data'        => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/ApiDocumentLink']],
-                                'count'       => ['type' => 'integer'],
-                            ],
-                        ]]]]],
-                    ],
                     'post' => [
                         'operationId' => 'addDocumentLink',
                         'summary'     => 'Link a document to an entity',
@@ -742,154 +619,6 @@ class OpenApiController extends Controller
                             '200' => ['description' => 'Link already existed (idempotent)'],
                             '422' => ['description' => 'Entity not found or not owned by you'],
                         ],
-                    ],
-                ],
-                '/documents/{id}/links/{linkId}' => [
-                    'delete' => [
-                        'operationId' => 'removeDocumentLink',
-                        'summary'     => 'Remove an entity link from a document',
-                        'description' => 'Unlinks the document from a specific entity. The document itself is not deleted. Scope: documents:write.',
-                        'parameters'  => [
-                            ['name' => 'id',     'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                            ['name' => 'linkId', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                        ],
-                        'responses' => ['200' => ['description' => 'Link removed']],
-                    ],
-                ],
-
-                // ── Documents scoped to Opportunity ───────────────────────────
-                '/opportunities/{id}/documents' => [
-                    'get' => [
-                        'operationId' => 'listOpportunityDocuments',
-                        'summary'     => 'List documents for an opportunity',
-                        'description' => 'Scope: documents:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Documents linked to the opportunity']],
-                    ],
-                    'post' => [
-                        'operationId' => 'addDocumentToOpportunity',
-                        'summary'     => 'Upload or register a document and link it to an opportunity',
-                        'description' => 'Accepts multipart/form-data (file) or application/json (URL). Creates the document and immediately links it to the opportunity. Scope: documents:write.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'requestBody' => ['required' => true, 'content' => [
-                            'multipart/form-data' => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']],
-                            'application/json'    => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']],
-                        ]],
-                        'responses'   => ['201' => ['description' => 'Document created and linked to opportunity']],
-                    ],
-                ],
-                '/opportunities/{id}/documents/{docId}' => [
-                    'delete' => [
-                        'operationId' => 'detachDocumentFromOpportunity',
-                        'summary'     => 'Unlink a document from an opportunity',
-                        'description' => 'Removes the entity link only. The document record is preserved. Scope: documents:write.',
-                        'parameters'  => [
-                            ['name' => 'id',    'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                            ['name' => 'docId', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                        ],
-                        'responses' => ['200' => ['description' => 'Document unlinked from opportunity']],
-                    ],
-                ],
-
-                // ── Documents scoped to Contact ───────────────────────────────
-                '/contacts/{id}/documents' => [
-                    'get' => [
-                        'operationId' => 'listContactDocuments',
-                        'summary'     => 'List documents for a contact',
-                        'description' => 'Scope: documents:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Documents linked to the contact']],
-                    ],
-                    'post' => [
-                        'operationId' => 'addDocumentToContact',
-                        'summary'     => 'Upload or register a document and link it to a contact',
-                        'description' => 'Accepts multipart/form-data (file) or application/json (URL). Creates the document and immediately links it to the contact. Scope: documents:write.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'requestBody' => ['required' => true, 'content' => [
-                            'multipart/form-data' => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']],
-                            'application/json'    => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']],
-                        ]],
-                        'responses'   => ['201' => ['description' => 'Document created and linked to contact']],
-                    ],
-                ],
-                '/contacts/{id}/documents/{docId}' => [
-                    'delete' => [
-                        'operationId' => 'detachDocumentFromContact',
-                        'summary'     => 'Unlink a document from a contact',
-                        'description' => 'Removes the entity link only. The document is preserved. Scope: documents:write.',
-                        'parameters'  => [
-                            ['name' => 'id',    'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                            ['name' => 'docId', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                        ],
-                        'responses' => ['200' => ['description' => 'Document unlinked from contact']],
-                    ],
-                ],
-
-                // ── Documents scoped to Email Draft ───────────────────────────
-                '/email-drafts/{id}/documents' => [
-                    'get' => [
-                        'operationId' => 'listEmailDraftDocuments',
-                        'summary'     => 'List documents linked to an email draft',
-                        'description' => 'Scope: documents:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Documents linked to the draft']],
-                    ],
-                    'post' => [
-                        'operationId' => 'addDocumentToEmailDraft',
-                        'summary'     => 'Upload or register a document and link it to an email draft',
-                        'description' => 'Links a document to a draft for context. IMPORTANT: This does NOT send the draft — it remains pending user review. Scope: documents:write.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'requestBody' => ['required' => true, 'content' => [
-                            'multipart/form-data' => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']],
-                            'application/json'    => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']],
-                        ]],
-                        'responses'   => ['201' => ['description' => 'Document linked to draft. Draft NOT sent.']],
-                    ],
-                ],
-                '/email-drafts/{id}/documents/{docId}' => [
-                    'delete' => [
-                        'operationId' => 'detachDocumentFromEmailDraft',
-                        'summary'     => 'Unlink a document from an email draft',
-                        'description' => 'Removes the link only. Draft and document are both preserved. Scope: documents:write.',
-                        'parameters'  => [
-                            ['name' => 'id',    'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                            ['name' => 'docId', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                        ],
-                        'responses' => ['200' => ['description' => 'Document unlinked from draft']],
-                    ],
-                ],
-
-                // ── Documents scoped to Follow-up ─────────────────────────────
-                '/follow-ups/{id}/documents' => [
-                    'get' => [
-                        'operationId' => 'listFollowUpDocuments',
-                        'summary'     => 'List documents linked to a follow-up',
-                        'description' => 'Scope: documents:read.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Documents linked to the follow-up']],
-                    ],
-                    'post' => [
-                        'operationId' => 'addDocumentToFollowUp',
-                        'summary'     => 'Upload or register a document and link it to a follow-up',
-                        'description' => 'Links a document to a follow-up reminder. Does NOT send the follow-up. Scope: documents:write.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'requestBody' => ['required' => true, 'content' => [
-                            'multipart/form-data' => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']],
-                            'application/json'    => ['schema' => ['$ref' => '#/components/schemas/ApiDocument']],
-                        ]],
-                        'responses'   => ['201' => ['description' => 'Document linked to follow-up']],
-                    ],
-                ],
-                '/follow-ups/{id}/documents/{docId}' => [
-                    'delete' => [
-                        'operationId' => 'detachDocumentFromFollowUp',
-                        'summary'     => 'Unlink a document from a follow-up',
-                        'description' => 'Removes the link only. Scope: documents:write.',
-                        'parameters'  => [
-                            ['name' => 'id',    'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                            ['name' => 'docId', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                        ],
-                        'responses' => ['200' => ['description' => 'Document unlinked from follow-up']],
                     ],
                 ],
 
@@ -977,25 +706,6 @@ class OpenApiController extends Controller
                         ],
                     ],
                 ],
-                '/email-drafts/{draft_id}/attachments' => [
-                    'post' => [
-                        'operationId' => 'addAttachmentsToDraft',
-                        'summary'     => 'Link attachments to an existing draft',
-                        'description' => 'Associates pre-registered attachments to a draft. Returns validation warnings for sensitive documents. Scope: drafts:create + attachments:write.',
-                        'parameters'  => [['name' => 'draft_id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
-                            'type'     => 'object',
-                            'required' => ['attachment_ids'],
-                            'properties' => [
-                                'attachment_ids' => ['type' => 'array', 'items' => ['type' => 'integer'], 'minItems' => 1, 'maxItems' => 10],
-                            ],
-                        ]]]],
-                        'responses' => [
-                            '201' => ['description' => 'Attachments linked'],
-                            '422' => ['description' => 'One or more attachment IDs not found'],
-                        ],
-                    ],
-                ],
                 // ---------------------------------------------------------------
                 // Follow-ups
                 // ---------------------------------------------------------------
@@ -1055,58 +765,6 @@ class OpenApiController extends Controller
                             ['name' => 'limit',          'in' => 'query', 'schema' => ['type' => 'integer', 'default' => 20, 'maximum' => 50]],
                         ],
                         'responses' => ['200' => ['description' => 'Recent replies']],
-                    ],
-                ],
-
-                // ---------------------------------------------------------------
-                // Bulk Ingestion
-                // ---------------------------------------------------------------
-                '/ingestion/opportunities' => [
-                    'post' => [
-                        'operationId' => 'ingestOpportunities',
-                        'summary'     => 'Bulk ingest opportunities',
-                        'description' => 'Accepts up to 50 opportunities. Deduplicates automatically. Scope: opportunities:write.',
-                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
-                            'type' => 'object', 'required' => ['items'],
-                            'properties' => ['items' => ['type' => 'array', 'maxItems' => 50, 'items' => [
-                                'type' => 'object', 'required' => ['title', 'type', 'organization'],
-                                'properties' => [
-                                    'title'        => ['type' => 'string', 'maxLength' => 255],
-                                    'type'         => ['type' => 'string', 'enum' => ['job', 'scholarship', 'research', 'grant', 'networking']],
-                                    'organization' => ['type' => 'string', 'maxLength' => 255],
-                                    'description'  => ['type' => 'string'],
-                                    'url'          => ['type' => 'string', 'format' => 'uri'],
-                                    'deadline'     => ['type' => 'string', 'format' => 'date'],
-                                    'priority'     => ['type' => 'string', 'enum' => ['low', 'medium', 'high', 'urgent']],
-                                    'notes'        => ['type' => 'string'],
-                                ],
-                            ]]],
-                        ]]]],
-                        'responses' => ['201' => ['description' => 'Ingestion result with created/duplicate counts']],
-                    ],
-                ],
-                '/ingestion/contacts' => [
-                    'post' => [
-                        'operationId' => 'ingestContacts',
-                        'summary'     => 'Bulk ingest contacts',
-                        'description' => 'Accepts up to 50 contacts. Deduplicates by email. Scope: contacts:write.',
-                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
-                            'type' => 'object', 'required' => ['items'],
-                            'properties' => ['items' => ['type' => 'array', 'maxItems' => 50, 'items' => [
-                                'type' => 'object', 'required' => ['first_name'],
-                                'properties' => [
-                                    'first_name'   => ['type' => 'string', 'maxLength' => 100],
-                                    'last_name'    => ['type' => 'string', 'maxLength' => 100],
-                                    'email'        => ['type' => 'string', 'format' => 'email'],
-                                    'company'      => ['type' => 'string', 'maxLength' => 255],
-                                    'job_title'    => ['type' => 'string', 'maxLength' => 255],
-                                    'phone'        => ['type' => 'string', 'maxLength' => 50],
-                                    'linkedin_url' => ['type' => 'string', 'format' => 'uri'],
-                                    'notes'        => ['type' => 'string'],
-                                ],
-                            ]]],
-                        ]]]],
-                        'responses' => ['201' => ['description' => 'Ingestion result with created/duplicate counts']],
                     ],
                 ],
 
