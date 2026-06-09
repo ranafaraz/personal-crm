@@ -187,6 +187,13 @@ class LinkedInAnalyticsService
 
     private function extractPostMetrics(array $element): array
     {
+        if (array_key_exists('count', $element) && array_key_exists('metricType', $element)) {
+            $metricType = $this->normaliseMetricType($element['metricType']);
+            $name = $this->mapLinkedInMetricName($metricType);
+
+            return $name ? [$name => $element['count']] : [];
+        }
+
         $totalEngagement = $element['totalShareStatistics'] ?? $element['totalEngagement'] ?? [];
 
         $metrics = [
@@ -218,8 +225,38 @@ class LinkedInAnalyticsService
     private function extractFollowerMetrics(array $element): array
     {
         return array_filter([
-            'followerCount'     => $element['followerCounts']['organicFollowerCount'] ?? null,
+            'followerCount'     => $element['memberFollowersCount'] ?? $element['followerCounts']['organicFollowerCount'] ?? null,
             'paidFollowerCount' => $element['followerCounts']['paidFollowerCount'] ?? null,
         ], fn ($v) => $v !== null);
+    }
+
+    private function normaliseMetricType(mixed $metricType): ?string
+    {
+        if (is_string($metricType)) {
+            return $metricType;
+        }
+
+        if (is_array($metricType)) {
+            return collect($metricType)->first();
+        }
+
+        return null;
+    }
+
+    private function mapLinkedInMetricName(?string $metricType): ?string
+    {
+        return match ($metricType) {
+            'IMPRESSION' => 'impressionCount',
+            'MEMBERS_REACHED' => 'uniqueImpressionsCount',
+            'LINK_CLICKS' => 'clickCount',
+            'REACTION' => 'likeCount',
+            'COMMENT' => 'commentCount',
+            'RESHARE' => 'shareCount',
+            'POST_SAVE' => 'saveCount',
+            'POST_SEND' => 'sendCount',
+            'FOLLOWER_GAINED_FROM_CONTENT' => 'followerGainedCount',
+            'PROFILE_VIEW_FROM_CONTENT' => 'profileViewCount',
+            default => null,
+        };
     }
 }

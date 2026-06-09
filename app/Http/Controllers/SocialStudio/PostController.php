@@ -9,6 +9,7 @@ use App\Models\SocialMediaAsset;
 use App\Models\SocialPost;
 use App\Models\SocialPostTarget;
 use App\Services\Social\SocialPublisherService;
+use App\Services\Social\SocialProviderCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -43,13 +44,7 @@ class PostController extends Controller
             ->where('approval_status', 'approved')
             ->orderByDesc('created_at')
             ->get();
-        $accounts = SocialAccount::where('user_id', $user->id)
-            ->whereHas('provider', fn ($q) => $q->whereIn('key', ['linkedin', 'wordpress']))
-            ->where('status', 'connected')
-            ->with('provider')
-            ->orderByDesc('is_default')
-            ->orderBy('display_name')
-            ->get();
+        $accounts = $this->publishableAccounts($user->id);
 
         return view('social-studio.posts.create', compact('assets', 'accounts'));
     }
@@ -140,13 +135,7 @@ class PostController extends Controller
         $assets = SocialMediaAsset::where('user_id', $request->user()->id)
             ->where('approval_status', 'approved')
             ->get();
-        $accounts = SocialAccount::where('user_id', $request->user()->id)
-            ->whereHas('provider', fn ($q) => $q->whereIn('key', ['linkedin', 'wordpress']))
-            ->where('status', 'connected')
-            ->with('provider')
-            ->orderByDesc('is_default')
-            ->orderBy('display_name')
-            ->get();
+        $accounts = $this->publishableAccounts($request->user()->id);
 
         return view('social-studio.posts.edit', compact('post', 'assets', 'accounts'));
     }
@@ -352,6 +341,7 @@ class PostController extends Controller
             ->where('status', 'connected')
             ->with('provider')
             ->get()
+            ->filter(fn (SocialAccount $account) => SocialProviderCatalog::providerSupportsPublishing($account->provider?->capabilities_json))
             ->keyBy('id');
 
         $post->targets()
@@ -406,6 +396,18 @@ class PostController extends Controller
             trim((string) ($targetMeta['content'] ?? '')) ?: strip_tags($post->post_body),
             ['visibility' => $targetMeta['visibility'] ?? $request->input('visibility', 'PUBLIC')],
         ];
+    }
+
+    private function publishableAccounts(int $userId)
+    {
+        return SocialAccount::where('user_id', $userId)
+            ->where('status', 'connected')
+            ->with('provider')
+            ->orderByDesc('is_default')
+            ->orderBy('display_name')
+            ->get()
+            ->filter(fn (SocialAccount $account) => SocialProviderCatalog::providerSupportsPublishing($account->provider?->capabilities_json))
+            ->values();
     }
 
     private function parseHashtags(string $input): array

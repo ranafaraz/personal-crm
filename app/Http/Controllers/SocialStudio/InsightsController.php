@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\SocialStudio;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\SyncLinkedInAnalyticsJob;
 use App\Models\SocialAccount;
 use App\Models\SocialAnalyticsSnapshot;
 use App\Models\SocialPost;
@@ -113,15 +112,43 @@ class InsightsController extends Controller
             return back()->with('info', 'No connected LinkedIn accounts to sync. WordPress publishing activity is shown from CRM publish records.');
         }
 
-        foreach ($accounts as $account) {
-            SyncLinkedInAnalyticsJob::dispatch($account->id);
+        $snapshotCount = 0;
+        $errors = [];
 
-            SocialPost::where('user_id', $user->id)
+        foreach ($accounts as $account) {
+            $token = $account->access_token_encrypted;
+
+            try {
+                $snapshotCount += $this->analytics->syncAggregateAnalytics($token, $account);
+                $snapshotCount += $this->analytics->syncFollowerAnalytics($token, $account);
+            } catch (\Throwable $e) {
+                report($e);
+                $errors[] = "{$account->display_name}: {$e->getMessage()}";
+            }
+
+            $posts = SocialPost::where('user_id', $user->id)
                 ->where('status', 'published')
                 ->whereNotNull('linkedin_post_urn')
-                ->each(fn ($post) => SyncLinkedInAnalyticsJob::dispatch($account->id, $post->id));
+                ->get();
+
+            foreach ($posts as $post) {
+                try {
+                    $snapshotCount += $this->analytics->syncPostAnalytics($token, $account, $post);
+                } catch (\Throwable $e) {
+                    report($e);
+                    $errors[] = "{$account->display_name} / {$post->title_internal}: {$e->getMessage()}";
+                }
+            }
         }
 
-        return back()->with('success', 'Analytics sync queued. Data will appear within a minute.');
+        if ($errors) {
+            return back()->with('error', 'LinkedIn sync completed with errors: ' . implode(' | ', array_slice($errors, 0, 3)));
+        }
+
+        if ($snapshotCount === 0) {
+            return back()->with('info', 'LinkedIn returned no analytics snapshots. Reconnect with r_member_postAnalytics and r_member_profileAnalytics if those scopes are missing.');
+        }
+
+        return back()->with('success', "LinkedIn analytics synced. {$snapshotCount} metric snapshot(s) stored.");
     }
 }

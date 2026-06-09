@@ -41,6 +41,67 @@ class SocialStudioUxTest extends TestCase
             ->assertDontSee('tinymce', false);
     }
 
+    public function test_user_can_connect_multiple_manual_accounts_for_same_provider(): void
+    {
+        $user = $this->user();
+
+        $this->actingAs($user)->post(route('social-studio.connections.manual.store'), [
+            'provider_key' => 'facebook',
+            'display_name' => 'DEXDEVS Facebook Page',
+            'account_identifier' => 'page-1',
+            'access_token' => 'token-one',
+        ])->assertRedirect(route('social-studio.connections'));
+
+        $this->actingAs($user)->post(route('social-studio.connections.manual.store'), [
+            'provider_key' => 'facebook',
+            'display_name' => 'Hiring Facebook Page',
+            'account_identifier' => 'page-2',
+            'access_token' => 'token-two',
+        ])->assertRedirect(route('social-studio.connections'));
+
+        $this->assertDatabaseHas('social_accounts', [
+            'user_id' => $user->id,
+            'display_name' => 'DEXDEVS Facebook Page',
+            'status' => 'connected',
+        ]);
+        $this->assertDatabaseHas('social_accounts', [
+            'user_id' => $user->id,
+            'display_name' => 'Hiring Facebook Page',
+            'status' => 'connected',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('social-studio.connections'))
+            ->assertOk()
+            ->assertSee('Facebook')
+            ->assertSee('DEXDEVS Facebook Page')
+            ->assertSee('Hiring Facebook Page');
+    }
+
+    public function test_manual_non_publish_channels_do_not_appear_as_scheduler_targets(): void
+    {
+        $user = $this->user();
+        $this->wordpressAccount($user);
+
+        $provider = SocialProvider::where('key', 'facebook')->firstOrFail();
+        SocialAccount::create([
+            'tenant_id' => $user->tenant_id,
+            'user_id' => $user->id,
+            'provider_id' => $provider->id,
+            'provider_account_urn' => 'page-1',
+            'display_name' => 'DEXDEVS Facebook Page',
+            'access_token_encrypted' => 'token-one',
+            'status' => 'connected',
+            'capabilities' => ['profile', 'manual_connection'],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('social-studio.posts.create'))
+            ->assertOk()
+            ->assertSee('DEXDEVS Blog')
+            ->assertDontSee('DEXDEVS Facebook Page');
+    }
+
     public function test_insights_show_wordpress_publish_activity(): void
     {
         $user = $this->user();

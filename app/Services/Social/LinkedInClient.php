@@ -17,7 +17,7 @@ class LinkedInClient
 
     private function version(): string
     {
-        return config('services.linkedin.api_version', '202412');
+        return config('services.linkedin.api_version', '202605');
     }
 
     private function headers(string $token): array
@@ -143,18 +143,15 @@ class LinkedInClient
      */
     public function getPostStatistics(string $token, string $postUrn): array
     {
-        $response = Http::withHeaders($this->headers($token))
-            ->get(self::REST_BASE . '/memberPostStatistics', [
-                'q'    => 'member',
-                'post' => $postUrn,
-            ]);
-
-        if ($response->status() === 403) {
-            throw new LinkedInPermissionException('Missing r_member_postAnalytics permission.');
-        }
-
-        $this->assertSuccess($response, 'LinkedIn getPostStatistics');
-        return $response->json('elements', []);
+        return collect($this->postAnalyticsMetrics())
+            ->flatMap(fn (string $metric) => $this->getCreatorPostAnalyticsMetric($token, [
+                'q' => 'entity',
+                'entity' => $this->formatAnalyticsEntity($postUrn),
+                'queryType' => $metric,
+                'aggregation' => 'TOTAL',
+            ], 'LinkedIn getPostStatistics'))
+            ->values()
+            ->all();
     }
 
     /**
@@ -162,15 +159,14 @@ class LinkedInClient
      */
     public function getAggregatePostStatistics(string $token, array $params = []): array
     {
-        $response = Http::withHeaders($this->headers($token))
-            ->get(self::REST_BASE . '/memberPostStatistics', array_merge(['q' => 'member'], $params));
-
-        if ($response->status() === 403) {
-            throw new LinkedInPermissionException('Missing r_member_postAnalytics permission.');
-        }
-
-        $this->assertSuccess($response, 'LinkedIn getAggregatePostStatistics');
-        return $response->json('elements', []);
+        return collect($this->postAnalyticsMetrics())
+            ->flatMap(fn (string $metric) => $this->getCreatorPostAnalyticsMetric($token, array_merge($params, [
+                'q' => 'me',
+                'queryType' => $metric,
+                'aggregation' => $params['aggregation'] ?? 'TOTAL',
+            ]), 'LinkedIn getAggregatePostStatistics'))
+            ->values()
+            ->all();
     }
 
     /**
@@ -179,7 +175,7 @@ class LinkedInClient
     public function getFollowerStatistics(string $token, array $params = []): array
     {
         $response = Http::withHeaders($this->headers($token))
-            ->get(self::REST_BASE . '/memberFollowerStatistics', array_merge(['q' => 'member'], $params));
+            ->get(self::REST_BASE . '/memberFollowersCount', array_merge(['q' => 'me'], $params));
 
         if ($response->status() === 403) {
             throw new LinkedInPermissionException('Missing r_member_profileAnalytics permission.');
@@ -187,6 +183,57 @@ class LinkedInClient
 
         $this->assertSuccess($response, 'LinkedIn getFollowerStatistics');
         return $response->json('elements', []);
+    }
+
+    private function getCreatorPostAnalyticsMetric(string $token, array $query, string $context): array
+    {
+        $url = self::REST_BASE . '/memberCreatorPostAnalytics';
+
+        if (($query['q'] ?? null) === 'entity') {
+            $url .= '?q=entity&entity=' . $query['entity']
+                . '&queryType=' . rawurlencode($query['queryType'])
+                . '&aggregation=' . rawurlencode($query['aggregation'] ?? 'TOTAL');
+
+            $response = Http::withHeaders($this->headers($token))->get($url);
+        } else {
+            $response = Http::withHeaders($this->headers($token))->get($url, $query);
+        }
+
+        if ($response->status() === 403) {
+            throw new LinkedInPermissionException('Missing r_member_postAnalytics permission.');
+        }
+
+        $this->assertSuccess($response, $context);
+        return $response->json('elements', []);
+    }
+
+    private function postAnalyticsMetrics(): array
+    {
+        return [
+            'IMPRESSION',
+            'MEMBERS_REACHED',
+            'LINK_CLICKS',
+            'REACTION',
+            'COMMENT',
+            'RESHARE',
+            'POST_SAVE',
+            'POST_SEND',
+            'FOLLOWER_GAINED_FROM_CONTENT',
+            'PROFILE_VIEW_FROM_CONTENT',
+        ];
+    }
+
+    private function formatAnalyticsEntity(string $postUrn): string
+    {
+        if (str_contains($postUrn, ':ugcPost:')) {
+            return '(ugc:' . rawurlencode($postUrn) . ')';
+        }
+
+        if (str_contains($postUrn, ':share:')) {
+            return '(share:' . rawurlencode($postUrn) . ')';
+        }
+
+        return rawurlencode($postUrn);
     }
 
     // ── Token introspection (legacy v2 endpoint) ───────────────────────────────

@@ -237,6 +237,7 @@ Route::middleware('auth')->prefix('social-studio')->name('social-studio.')->grou
     Route::get('connections/connect', [SocialConnectionController::class, 'connect'])->name('connections.connect');
     Route::get('connections/callback', [SocialConnectionController::class, 'callback'])->name('connections.callback');
     Route::post('connections/wordpress', [SocialConnectionController::class, 'storeWordPress'])->name('connections.wordpress.store');
+    Route::post('connections/manual', [SocialConnectionController::class, 'storeManual'])->name('connections.manual.store');
     Route::delete('connections/{id}', [SocialConnectionController::class, 'disconnect'])->name('connections.disconnect');
     Route::patch('connections/{id}/set-default', [SocialConnectionController::class, 'setDefault'])->name('connections.set-default');
     Route::patch('connections/{id}/verify', [SocialConnectionController::class, 'verify'])->name('connections.verify');

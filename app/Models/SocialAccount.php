@@ -67,7 +67,7 @@ class SocialAccount extends Model
     public function makeDefault(): void
     {
         self::where('user_id', $this->user_id)
-            ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
+            ->where('provider_id', $this->provider_id)
             ->where('id', '!=', $this->id)
             ->update(['is_default' => false]);
 

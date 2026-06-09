@@ -40,6 +40,7 @@ return [
         'client_secret' => env('LINKEDIN_CLIENT_SECRET'),
         'redirect'      => env('LINKEDIN_REDIRECT_URI'),
         'scopes'        => env('LINKEDIN_SCOPES', 'w_member_social openid profile email'),
+        'api_version'   => env('LINKEDIN_API_VERSION', '202605'),
     ],
 
 ];

@@ -21,7 +21,7 @@
     </div>
 
     <div class="flex items-center gap-2 flex-shrink-0">
-        @if(! $account->is_default && $account->provider?->key === 'linkedin')
+        @if(! $account->is_default)
             <form method="POST" action="{{ route('social-studio.connections.set-default', $account->id) }}">
                 @csrf @method('PATCH')
                 <button type="submit" class="text-xs text-slate-500 hover:text-indigo-600 underline">Default</button>

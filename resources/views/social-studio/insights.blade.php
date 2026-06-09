@@ -24,6 +24,9 @@
     @if(session('success'))
         <div class="bg-green-50 border border-green-200 text-green-800 text-sm rounded-lg px-4 py-3">{{ session('success') }}</div>
     @endif
+    @if(session('info'))
+        <div class="bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">{{ session('info') }}</div>
+    @endif
     @if(session('error'))
         <div class="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-4 py-3">{{ session('error') }}</div>
     @endif
