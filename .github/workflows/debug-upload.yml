@@ -38,35 +38,6 @@ jobs:
             CLIENT_ID=$(grep CLIENT_ID /tmp/token_out.txt | cut -d= -f2)
             rm -f /tmp/mk_token.php /tmp/token_out.txt
 
-            echo "=== Upload Document B (linked to contact 209) ==="
-            echo "CRM acceptance test file B - for contact 209 and follow-up 14" > /tmp/test_docB.txt
-            RESP_B=$(curl -s -X POST "https://crm.dexdevs.com/api/gpt/v1/documents/upload" \
-              -H "X-Api-Key: $TOKEN" \
-              -H "Accept: application/json" \
-              -F "file=@/tmp/test_docB.txt;type=text/plain" \
-              -F "name=CRM Test Document B" \
-              -F "document_type=other" \
-              -F "contact_id=209")
-            echo "$RESP_B"
-            DOCB_ID=$(echo "$RESP_B" | php -r '$d=json_decode(file_get_contents("php://stdin"),true); echo $d["data"]["document_id"] ?? "";')
-            echo "DOCB_ID=$DOCB_ID"
-
-            echo "=== Link Document 3 (Debug Test Document) to email_draft 519 ==="
-            curl -s -X POST "https://crm.dexdevs.com/api/gpt/v1/documents/3/links" \
-              -H "X-Api-Key: $TOKEN" \
-              -H "Accept: application/json" \
-              -H "Content-Type: application/json" \
-              -d '{"entity_type":"email_draft","entity_id":519}'
-            echo ""
-
-            echo "=== Link Document B to follow_up 14 ==="
-            curl -s -X POST "https://crm.dexdevs.com/api/gpt/v1/documents/${DOCB_ID}/links" \
-              -H "X-Api-Key: $TOKEN" \
-              -H "Accept: application/json" \
-              -H "Content-Type: application/json" \
-              -d '{"entity_type":"follow_up","entity_id":14}'
-            echo ""
-
             echo "=== Render frontend pages and check for linked documents ==="
             {
               printf '%s\n' '<?php'
@@ -112,6 +83,6 @@ jobs:
               printf '%s\n' 'echo "cleaned up client '"$CLIENT_ID"'\n";'
             } > /tmp/cleanup.php
             php /tmp/cleanup.php
-            rm -f /tmp/cleanup.php /tmp/test_docB.txt
+            rm -f /tmp/cleanup.php
 
             echo "Done."
