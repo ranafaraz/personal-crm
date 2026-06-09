@@ -82,7 +82,12 @@ Route::prefix('gpt/v1')
         // ---------------------------------------------------------------------------
         Route::post('attachments', [AttachmentController::class, 'store'])
             ->middleware(['api.scope:attachments:write', 'throttle:20,1']);
+        // File upload — must be registered before {id} wildcard
+        Route::post('attachments/upload', [AttachmentController::class, 'upload'])
+            ->middleware(['api.scope:attachments:write', 'throttle:20,1']);
         Route::get('attachments/{id}', [AttachmentController::class, 'show'])
+            ->middleware('api.scope:attachments:read');
+        Route::get('attachments/{id}/download', [AttachmentController::class, 'download'])
             ->middleware('api.scope:attachments:read');
         Route::delete('attachments/{id}', [AttachmentController::class, 'destroy'])
             ->middleware('api.scope:attachments:write');
@@ -133,6 +138,9 @@ Route::prefix('gpt/v1')
         Route::get('documents', [DocumentController::class, 'index'])
             ->middleware('api.scope:documents:read');
         Route::post('documents', [DocumentController::class, 'store'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+        // Dedicated file-upload alias — separate path so ChatGPT uses multipart unambiguously
+        Route::post('documents/upload', [DocumentController::class, 'store'])
             ->middleware(['api.scope:documents:write', 'throttle:20,1']);
         Route::get('documents/{id}', [DocumentController::class, 'show'])
             ->middleware('api.scope:documents:read');

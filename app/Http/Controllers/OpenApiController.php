@@ -454,8 +454,8 @@ class OpenApiController extends Controller
                 '/attachments' => [
                     'post' => [
                         'operationId' => 'createAttachment',
-                        'summary'     => 'Register a public-URL attachment',
-                        'description' => 'Registers a file by its public URL. Only http/https URLs accepted; private IPs and localhost are rejected. Max 20 MB. Identity/credential files trigger validation warnings. Scope: attachments:write.',
+                        'summary'     => 'Register an externally-hosted attachment by URL',
+                        'description' => 'Registers a file via a public https:// URL. Use POST /attachments/upload instead if the file is available locally. Scope: attachments:write.',
                         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
                             'type'     => 'object',
                             'required' => ['filename', 'public_url', 'mime_type', 'size_bytes'],
@@ -519,68 +519,77 @@ class OpenApiController extends Controller
                         ],
                     ],
                     'post' => [
-                        'operationId' => 'createDocument',
-                        'summary'     => 'Upload or register a document',
-                        'description' => 'Upload a file (multipart/form-data) or register a public URL (application/json). Supply opportunity_id, contact_id, email_draft_id, or follow_up_id to link the document on creation. Attaching to email_draft does NOT trigger sending — draft stays pending user review. Scope: documents:write.',
-                        'requestBody' => [
-                            'required' => true,
-                            'content'  => [
-                                'multipart/form-data' => ['schema' => [
-                                    'type'     => 'object',
-                                    'required' => ['name', 'file'],
-                                    'properties' => [
-                                        'file'           => ['type' => 'string', 'format' => 'binary', 'description' => 'File to upload (max 20 MB). Supported: pdf, doc, docx, xls, xlsx, ppt, pptx, txt, csv, jpg, png, gif, webp'],
-                                        'name'           => ['type' => 'string', 'maxLength' => 500],
-                                        'document_type'  => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'contract', 'report', 'other']],
-                                        'description'    => ['type' => 'string', 'maxLength' => 2000],
-                                        'version_notes'  => ['type' => 'string', 'maxLength' => 2000],
-                                        'opportunity_id' => ['type' => 'integer', 'description' => 'Link to this opportunity after creation'],
-                                        'contact_id'     => ['type' => 'integer', 'description' => 'Link to this contact after creation'],
-                                        'email_draft_id' => ['type' => 'integer', 'description' => 'Link to this email draft (does NOT trigger sending)'],
-                                        'follow_up_id'   => ['type' => 'integer', 'description' => 'Link to this follow-up'],
-                                    ],
-                                ]],
-                                'application/json' => ['schema' => [
-                                    'type'     => 'object',
-                                    'required' => ['name', 'public_url', 'mime_type', 'size_bytes'],
-                                    'properties' => [
-                                        'name'           => ['type' => 'string', 'maxLength' => 500],
-                                        'public_url'     => ['type' => 'string', 'format' => 'uri', 'maxLength' => 2048, 'description' => 'Publicly accessible https:// URL'],
-                                        'mime_type'      => ['type' => 'string', 'enum' => ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'text/plain', 'text/csv', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']],
-                                        'size_bytes'     => ['type' => 'integer', 'minimum' => 1, 'maximum' => 20971520],
-                                        'checksum'       => ['type' => 'string', 'maxLength' => 64, 'description' => 'Optional sha256 hex digest'],
-                                        'document_type'  => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'contract', 'report', 'other']],
-                                        'description'    => ['type' => 'string', 'maxLength' => 2000],
-                                        'version_notes'  => ['type' => 'string', 'maxLength' => 2000],
-                                        'opportunity_id' => ['type' => 'integer'],
-                                        'contact_id'     => ['type' => 'integer'],
-                                        'email_draft_id' => ['type' => 'integer'],
-                                        'follow_up_id'   => ['type' => 'integer'],
-                                    ],
-                                    'example' => [
-                                        'name'           => 'Rana CV 2026',
-                                        'public_url'     => 'https://drive.google.com/uc?id=abc123&export=download',
-                                        'mime_type'      => 'application/pdf',
-                                        'size_bytes'     => 524288,
-                                        'document_type'  => 'resume',
-                                        'opportunity_id' => 7,
-                                    ],
-                                ]],
+                        'operationId' => 'registerDocumentUrl',
+                        'summary'     => 'Register an externally-hosted document by URL',
+                        'description' => 'Store a document record pointing to a public https:// URL. Use POST /documents/upload to upload a local file to CRM storage instead. Supply entity IDs to link on creation. Scope: documents:write.',
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['name', 'public_url', 'mime_type', 'size_bytes'],
+                            'properties' => [
+                                'name'           => ['type' => 'string', 'maxLength' => 500],
+                                'public_url'     => ['type' => 'string', 'format' => 'uri', 'maxLength' => 2048],
+                                'mime_type'      => ['type' => 'string', 'enum' => ['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','text/csv','image/jpeg','image/png']],
+                                'size_bytes'     => ['type' => 'integer', 'minimum' => 1, 'maximum' => 20971520],
+                                'document_type'  => ['type' => 'string', 'enum' => ['resume','cover_letter','proposal','portfolio','reference','contract','report','other']],
+                                'description'    => ['type' => 'string', 'maxLength' => 2000],
+                                'opportunity_id' => ['type' => 'integer'],
+                                'contact_id'     => ['type' => 'integer'],
+                                'email_draft_id' => ['type' => 'integer', 'description' => 'Does NOT trigger sending'],
+                                'follow_up_id'   => ['type' => 'integer'],
                             ],
-                        ],
+                        ]]]],
                         'responses' => [
-                            '201' => [
-                                'description' => 'Document created. sensitive_warnings populated if filename suggests identity/credential content.',
-                                'content' => ['application/json' => ['schema' => [
-                                    'type' => 'object',
-                                    'properties' => [
-                                        'data'               => ['$ref' => '#/components/schemas/ApiDocument'],
-                                        'message'            => ['type' => 'string'],
-                                        'sensitive_warnings' => ['type' => 'array', 'items' => ['type' => 'string']],
-                                    ],
-                                ]]],
+                            '201' => ['description' => 'Document registered'],
+                            '422' => ['description' => 'Validation error'],
+                        ],
+                    ],
+                ],
+
+                // ── Upload file to CRM storage ────────────────────────────────
+                '/documents/upload' => [
+                    'post' => [
+                        'operationId' => 'uploadDocument',
+                        'summary'     => 'Upload a file to CRM storage',
+                        'description' => 'Send a real file from this conversation as multipart/form-data. CRM stores the file and returns a CRM-hosted download URL. Supply entity IDs to link on creation. Attaching to email_draft does NOT send it. Scope: documents:write.',
+                        'requestBody' => ['required' => true, 'content' => ['multipart/form-data' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['name', 'file'],
+                            'properties' => [
+                                'file'           => ['type' => 'string', 'format' => 'binary', 'description' => 'File to upload (max 20 MB)'],
+                                'name'           => ['type' => 'string', 'maxLength' => 500],
+                                'document_type'  => ['type' => 'string', 'enum' => ['resume','cover_letter','proposal','portfolio','reference','contract','report','other']],
+                                'description'    => ['type' => 'string', 'maxLength' => 500],
+                                'opportunity_id' => ['type' => 'integer'],
+                                'contact_id'     => ['type' => 'integer'],
+                                'email_draft_id' => ['type' => 'integer'],
+                                'follow_up_id'   => ['type' => 'integer'],
                             ],
-                            '422' => ['description' => 'Validation error (bad URL, unsupported MIME, unknown entity ID)'],
+                        ]]]],
+                        'responses' => [
+                            '201' => ['description' => 'File stored on CRM server. Response includes CRM-hosted download_url.'],
+                            '422' => ['description' => 'Validation error'],
+                        ],
+                    ],
+                ],
+
+                // ── Upload attachment file to CRM storage ─────────────────────
+                '/attachments/upload' => [
+                    'post' => [
+                        'operationId' => 'uploadAttachment',
+                        'summary'     => 'Upload an attachment file to CRM storage',
+                        'description' => 'Send a real file from this conversation as multipart/form-data. CRM stores it and returns a CRM-hosted download URL you can then pass as attachment_ids on a draft or follow-up. Scope: attachments:write.',
+                        'requestBody' => ['required' => true, 'content' => ['multipart/form-data' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['file'],
+                            'properties' => [
+                                'file'     => ['type' => 'string', 'format' => 'binary', 'description' => 'File to upload (max 20 MB)'],
+                                'category' => ['type' => 'string', 'enum' => ['cv_resume','cover_letter','portfolio','transcript','certificate','id_document','reference','sample_work','proposal','other']],
+                                'notes'    => ['type' => 'string', 'maxLength' => 500],
+                            ],
+                        ]]]],
+                        'responses' => [
+                            '201' => ['description' => 'File stored on CRM server. Use the returned id as attachment_ids on drafts/follow-ups.'],
+                            '422' => ['description' => 'Validation error'],
                         ],
                     ],
                 ],
@@ -768,37 +777,6 @@ class OpenApiController extends Controller
                     ],
                 ],
 
-                // ---------------------------------------------------------------
-                // Confirmations
-                // ---------------------------------------------------------------
-                '/confirmations' => [
-                    'post' => [
-                        'operationId' => 'createConfirmation',
-                        'summary'     => 'Request user confirmation for a high-risk action',
-                        'description' => 'Creates a pending confirmation the CRM user must approve or reject before proceeding.',
-                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
-                            'type' => 'object', 'required' => ['action', 'description'],
-                            'properties' => [
-                                'action'      => ['type' => 'string'],
-                                'description' => ['type' => 'string'],
-                                'payload'     => ['type' => 'object'],
-                            ],
-                        ]]]],
-                        'responses' => ['201' => ['description' => 'Confirmation created']],
-                    ],
-                ],
-                '/confirmations/{id}' => [
-                    'get' => [
-                        'operationId' => 'getConfirmation',
-                        'summary'     => 'Poll confirmation status',
-                        'description' => 'Returns the current status (pending, approved, rejected) of a confirmation request.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid']]],
-                        'responses'   => [
-                            '200' => ['description' => 'Confirmation status'],
-                            '404' => ['description' => 'Not found or expired'],
-                        ],
-                    ],
-                ],
 
             ],
         ];

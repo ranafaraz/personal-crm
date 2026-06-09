@@ -20,6 +20,8 @@ class ApiAttachment extends Model
         'added_by_api_client_id',
         'filename',
         'public_url',
+        'file_path',
+        'storage_disk',
         'mime_type',
         'size_bytes',
         'category',
@@ -34,6 +36,11 @@ class ApiAttachment extends Model
             'size_bytes'           => 'integer',
             'validation_warnings'  => 'array',
         ];
+    }
+
+    public function hasLocalFile(): bool
+    {
+        return !empty($this->file_path);
     }
 
     // -------------------------------------------------------------------------
