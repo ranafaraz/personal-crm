@@ -126,28 +126,72 @@ Route::prefix('gpt/v1')
             ->middleware(['api.scope:contacts:write', 'throttle:10,1']);
 
         // ---------------------------------------------------------------------------
-        // Documents  (associated with opportunities, contacts, or email drafts)
+        // Documents  – CRUD + versioning + entity links
         // ---------------------------------------------------------------------------
+
+        // Core CRUD
         Route::get('documents', [DocumentController::class, 'index'])
             ->middleware('api.scope:documents:read');
         Route::post('documents', [DocumentController::class, 'store'])
             ->middleware(['api.scope:documents:write', 'throttle:20,1']);
         Route::get('documents/{id}', [DocumentController::class, 'show'])
             ->middleware('api.scope:documents:read');
+        Route::patch('documents/{id}', [DocumentController::class, 'update'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
         Route::delete('documents/{id}', [DocumentController::class, 'destroy'])
             ->middleware('api.scope:documents:write');
 
-        // Nested: documents scoped to an opportunity
+        // Download current version
+        Route::get('documents/{id}/download', [DocumentController::class, 'download'])
+            ->middleware('api.scope:documents:read');
+
+        // Version management (full history preserved — never overwritten)
+        Route::get('documents/{id}/versions', [DocumentController::class, 'listVersions'])
+            ->middleware('api.scope:documents:read');
+        Route::post('documents/{id}/versions', [DocumentController::class, 'addVersion'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+        Route::get('documents/{id}/versions/{vid}/download', [DocumentController::class, 'downloadVersion'])
+            ->middleware('api.scope:documents:read');
+
+        // Entity link management
+        Route::get('documents/{id}/links', [DocumentController::class, 'listLinks'])
+            ->middleware('api.scope:documents:read');
+        Route::post('documents/{id}/links', [DocumentController::class, 'addLink'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+        Route::delete('documents/{id}/links/{linkId}', [DocumentController::class, 'removeLink'])
+            ->middleware('api.scope:documents:write');
+
+        // Scoped convenience routes — Opportunities
         Route::get('opportunities/{id}/documents', [DocumentController::class, 'indexForOpportunity'])
             ->middleware('api.scope:documents:read');
         Route::post('opportunities/{id}/documents', [DocumentController::class, 'storeForOpportunity'])
             ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+        Route::delete('opportunities/{id}/documents/{docId}', [DocumentController::class, 'detachFromOpportunity'])
+            ->middleware('api.scope:documents:write');
 
-        // Nested: documents scoped to a contact
+        // Scoped convenience routes — Contacts
         Route::get('contacts/{id}/documents', [DocumentController::class, 'indexForContact'])
             ->middleware('api.scope:documents:read');
         Route::post('contacts/{id}/documents', [DocumentController::class, 'storeForContact'])
             ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+        Route::delete('contacts/{id}/documents/{docId}', [DocumentController::class, 'detachFromContact'])
+            ->middleware('api.scope:documents:write');
+
+        // Scoped convenience routes — Email Drafts (attaching never triggers sending)
+        Route::get('email-drafts/{id}/documents', [DocumentController::class, 'indexForEmailDraft'])
+            ->middleware('api.scope:documents:read');
+        Route::post('email-drafts/{id}/documents', [DocumentController::class, 'storeForEmailDraft'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+        Route::delete('email-drafts/{id}/documents/{docId}', [DocumentController::class, 'detachFromEmailDraft'])
+            ->middleware('api.scope:documents:write');
+
+        // Scoped convenience routes — Follow-ups
+        Route::get('follow-ups/{id}/documents', [DocumentController::class, 'indexForFollowUp'])
+            ->middleware('api.scope:documents:read');
+        Route::post('follow-ups/{id}/documents', [DocumentController::class, 'storeForFollowUp'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+        Route::delete('follow-ups/{id}/documents/{docId}', [DocumentController::class, 'detachFromFollowUp'])
+            ->middleware('api.scope:documents:write');
 
         // Confirmation requests (multi-step AI action gating)
         Route::post('confirmations', [ConfirmationController::class, 'store'])
