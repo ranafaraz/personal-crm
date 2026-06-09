@@ -92,6 +92,7 @@ class OpportunityController extends Controller
                 'emailMessages.emailAccount',
                 'followUps',
                 'documents',
+                'apiDocumentLinks.document.currentVersion',
                 'timelineEvents' => fn ($q) => $q->orderByDesc('happened_at'),
             ])
             ->findOrFail($id);

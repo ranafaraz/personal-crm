@@ -113,6 +113,15 @@ class EmailDraftController extends GptController
                 ->whereIn('id', $data['attachment_ids'])
                 ->get();
 
+            $missingIds = array_values(array_diff($data['attachment_ids'], $attachments->pluck('id')->toArray()));
+            if (! empty($missingIds)) {
+                $draft->forceDelete();
+                return response()->json([
+                    'error'       => 'One or more attachment_ids were not found. Use POST /attachments to register files and get valid IDs. Document IDs from POST /documents are not interchangeable with attachment IDs.',
+                    'missing_ids' => $missingIds,
+                ], 422);
+            }
+
             $syncData = [];
             foreach ($attachments as $att) {
                 $syncData[$att->id] = ['added_by_user_id' => $user->id];

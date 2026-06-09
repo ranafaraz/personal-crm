@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
+use App\Models\ApiDocumentLink;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -78,6 +79,12 @@ class Opportunity extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(Document::class);
+    }
+
+    public function apiDocumentLinks(): HasMany
+    {
+        return $this->hasMany(ApiDocumentLink::class, 'entity_id')
+                    ->where('entity_type', 'opportunity');
     }
 
     public function timelineEvents(): MorphMany

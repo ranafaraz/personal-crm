@@ -42,12 +42,26 @@
             <div class="prose prose-sm max-w-none bg-slate-50 rounded-lg p-4 text-sm text-slate-800 leading-relaxed">{!! $rendered !!}</div>
             <p class="text-xs text-slate-400 mt-2">Recipients see the rendered HTML, not the raw markup.</p>
         </div>
-        @if($email->attachments->isNotEmpty())
+        @php
+            $localAtts = $email->attachments;
+            $apiAtts   = $email->relationLoaded('apiAttachments') ? $email->apiAttachments : collect();
+        @endphp
+        @if($localAtts->isNotEmpty() || $apiAtts->isNotEmpty())
             <div class="pt-4 border-t border-slate-100">
                 <p class="text-sm font-semibold text-slate-700 mb-2">Attachments</p>
                 <div class="flex flex-wrap gap-2">
-                    @foreach($email->attachments as $att)
+                    @foreach($localAtts as $att)
                         <span class="bg-slate-100 text-slate-700 text-xs px-3 py-1.5 rounded-lg">{{ $att->file_name }}</span>
+                    @endforeach
+                    @foreach($apiAtts as $att)
+                        @if($att->public_url)
+                            <a href="{{ $att->public_url }}" target="_blank" rel="noopener"
+                               class="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-100">
+                                {{ $att->filename }}
+                            </a>
+                        @else
+                            <span class="bg-slate-100 text-slate-700 text-xs px-3 py-1.5 rounded-lg">{{ $att->filename }}</span>
+                        @endif
                     @endforeach
                 </div>
             </div>
