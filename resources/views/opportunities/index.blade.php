@@ -159,7 +159,12 @@
                                             const f = document.createElement('form');
                                             f.method = 'POST';
                                             f.action = '{{ route('opportunities.destroy', $opp) }}';
-                                            f.innerHTML = '@csrf @method(\'DELETE\')';
+                                            const t = document.createElement('input');
+                                            t.type = 'hidden'; t.name = '_token';
+                                            t.value = document.querySelector('meta[name=csrf-token]').content;
+                                            const m = document.createElement('input');
+                                            m.type = 'hidden'; m.name = '_method'; m.value = 'DELETE';
+                                            f.appendChild(t); f.appendChild(m);
                                             document.body.appendChild(f);
                                             f.submit();
                                         }"
