@@ -19,11 +19,28 @@ class Document extends Model
         'contact_id',
         'name',
         'description',
+        'public_url',
         'file_path',
         'file_name',
         'file_size',
         'mime_type',
         'document_type',
+    ];
+
+    const DOCUMENT_TYPES = ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'other'];
+
+    const ALLOWED_MIME_TYPES = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain',
+        'text/csv',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
     ];
 
     protected function casts(): array

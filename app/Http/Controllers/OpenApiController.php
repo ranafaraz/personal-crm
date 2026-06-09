@@ -79,6 +79,22 @@ class OpenApiController extends Controller
                             'updated_at' => ['type' => 'string', 'format' => 'date-time'],
                         ],
                     ],
+                    'Document' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'id'             => ['type' => 'integer'],
+                            'name'           => ['type' => 'string', 'description' => 'Human-readable document name'],
+                            'description'    => ['type' => 'string', 'nullable' => true],
+                            'document_type'  => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'other']],
+                            'public_url'     => ['type' => 'string', 'format' => 'uri', 'nullable' => true, 'description' => 'Publicly accessible URL (API-created docs)'],
+                            'file_name'      => ['type' => 'string', 'nullable' => true, 'description' => 'Original filename (UI-uploaded docs)'],
+                            'file_size'      => ['type' => 'integer', 'nullable' => true, 'description' => 'File size in bytes'],
+                            'mime_type'      => ['type' => 'string'],
+                            'opportunity_id' => ['type' => 'integer', 'nullable' => true],
+                            'contact_id'     => ['type' => 'integer', 'nullable' => true],
+                            'created_at'     => ['type' => 'string', 'format' => 'date-time'],
+                        ],
+                    ],
                     'Attachment' => [
                         'type' => 'object',
                         'properties' => [
@@ -466,6 +482,130 @@ class OpenApiController extends Controller
                         'description' => 'Scope: attachments:read.',
                         'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
                         'responses'   => ['200' => ['description' => 'Attachment detail', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Attachment']]]]],
+                    ],
+                ],
+
+                // ---------------------------------------------------------------
+                // Documents
+                // ---------------------------------------------------------------
+                '/documents' => [
+                    'get' => [
+                        'operationId' => 'listDocuments',
+                        'summary'     => 'List documents',
+                        'description' => 'List all documents for the authenticated user. Filter by opportunity_id, contact_id, or document_type. Scope: documents:read.',
+                        'parameters'  => [
+                            ['name' => 'opportunity_id', 'in' => 'query', 'schema' => ['type' => 'integer'], 'description' => 'Filter by opportunity'],
+                            ['name' => 'contact_id',     'in' => 'query', 'schema' => ['type' => 'integer'], 'description' => 'Filter by contact'],
+                            ['name' => 'document_type',  'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'other']]],
+                        ],
+                        'responses' => [
+                            '200' => ['description' => 'List of documents', 'content' => ['application/json' => ['schema' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'data'  => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Document']],
+                                    'count' => ['type' => 'integer'],
+                                ],
+                            ]]]],
+                        ],
+                    ],
+                    'post' => [
+                        'operationId' => 'createDocument',
+                        'summary'     => 'Register a document by URL',
+                        'description' => 'Creates a document record linked to an optional opportunity or contact. Only http/https URLs are accepted. Scope: documents:write.',
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['name', 'public_url', 'mime_type'],
+                            'properties' => [
+                                'name'           => ['type' => 'string', 'maxLength' => 500],
+                                'public_url'     => ['type' => 'string', 'format' => 'uri', 'maxLength' => 2048, 'description' => 'Publicly accessible https:// URL to the document'],
+                                'mime_type'      => ['type' => 'string', 'enum' => ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/csv', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']],
+                                'document_type'  => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'other']],
+                                'description'    => ['type' => 'string', 'maxLength' => 2000],
+                                'opportunity_id' => ['type' => 'integer', 'nullable' => true, 'description' => 'Associate with an opportunity'],
+                                'contact_id'     => ['type' => 'integer', 'nullable' => true, 'description' => 'Associate with a contact'],
+                            ],
+                            'example' => [
+                                'name'           => 'Rana CV 2026',
+                                'public_url'     => 'https://drive.google.com/uc?id=abc123&export=download',
+                                'mime_type'      => 'application/pdf',
+                                'document_type'  => 'resume',
+                                'opportunity_id' => 7,
+                            ],
+                        ]]]],
+                        'responses' => [
+                            '201' => ['description' => 'Document created', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Document']]]],
+                            '422' => ['description' => 'Validation error'],
+                        ],
+                    ],
+                ],
+                '/documents/{id}' => [
+                    'get' => [
+                        'operationId' => 'getDocument',
+                        'summary'     => 'Get document by ID',
+                        'description' => 'Scope: documents:read.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Document detail', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Document']]]]],
+                    ],
+                    'delete' => [
+                        'operationId' => 'deleteDocument',
+                        'summary'     => 'Delete a document',
+                        'description' => 'Soft-deletes the document record. Does not remove the original file from its host. Scope: documents:write.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Document deleted']],
+                    ],
+                ],
+                '/opportunities/{id}/documents' => [
+                    'get' => [
+                        'operationId' => 'listOpportunityDocuments',
+                        'summary'     => 'List documents for an opportunity',
+                        'description' => 'Returns all documents attached to the given opportunity. Scope: documents:read.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Documents for the opportunity']],
+                    ],
+                    'post' => [
+                        'operationId' => 'addDocumentToOpportunity',
+                        'summary'     => 'Add a document to an opportunity',
+                        'description' => 'Creates a new document record and links it to the given opportunity. Scope: documents:write.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['name', 'public_url', 'mime_type'],
+                            'properties' => [
+                                'name'          => ['type' => 'string', 'maxLength' => 500],
+                                'public_url'    => ['type' => 'string', 'format' => 'uri', 'maxLength' => 2048],
+                                'mime_type'     => ['type' => 'string', 'enum' => ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/csv', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']],
+                                'document_type' => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'other']],
+                                'description'   => ['type' => 'string', 'maxLength' => 2000],
+                            ],
+                        ]]]],
+                        'responses' => ['201' => ['description' => 'Document added to opportunity']],
+                    ],
+                ],
+                '/contacts/{id}/documents' => [
+                    'get' => [
+                        'operationId' => 'listContactDocuments',
+                        'summary'     => 'List documents for a contact',
+                        'description' => 'Returns all documents attached to the given contact. Scope: documents:read.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Documents for the contact']],
+                    ],
+                    'post' => [
+                        'operationId' => 'addDocumentToContact',
+                        'summary'     => 'Add a document to a contact',
+                        'description' => 'Creates a new document record and links it to the given contact. Scope: documents:write.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['name', 'public_url', 'mime_type'],
+                            'properties' => [
+                                'name'          => ['type' => 'string', 'maxLength' => 500],
+                                'public_url'    => ['type' => 'string', 'format' => 'uri', 'maxLength' => 2048],
+                                'mime_type'     => ['type' => 'string', 'enum' => ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/csv', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']],
+                                'document_type' => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'other']],
+                                'description'   => ['type' => 'string', 'maxLength' => 2000],
+                            ],
+                        ]]]],
+                        'responses' => ['201' => ['description' => 'Document added to contact']],
                     ],
                 ],
 

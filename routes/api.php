@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Gpt\V1\IngestionController;
 use App\Http\Controllers\Api\Gpt\V1\ConfirmationController;
 use App\Http\Controllers\Api\Gpt\V1\SignatureController;
 use App\Http\Controllers\Api\Gpt\V1\AttachmentController;
+use App\Http\Controllers\Api\Gpt\V1\DocumentController;
 use App\Http\Controllers\Api\Gpt\V1\DraftAttachmentController;
 use App\Http\Controllers\Api\Gpt\V1\DraftPreviewController;
 use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInAccountController;
@@ -123,6 +124,30 @@ Route::prefix('gpt/v1')
             ->middleware(['api.scope:opportunities:write', 'throttle:10,1']);
         Route::post('ingestion/contacts', [IngestionController::class, 'contacts'])
             ->middleware(['api.scope:contacts:write', 'throttle:10,1']);
+
+        // ---------------------------------------------------------------------------
+        // Documents  (associated with opportunities, contacts, or email drafts)
+        // ---------------------------------------------------------------------------
+        Route::get('documents', [DocumentController::class, 'index'])
+            ->middleware('api.scope:documents:read');
+        Route::post('documents', [DocumentController::class, 'store'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+        Route::get('documents/{id}', [DocumentController::class, 'show'])
+            ->middleware('api.scope:documents:read');
+        Route::delete('documents/{id}', [DocumentController::class, 'destroy'])
+            ->middleware('api.scope:documents:write');
+
+        // Nested: documents scoped to an opportunity
+        Route::get('opportunities/{id}/documents', [DocumentController::class, 'indexForOpportunity'])
+            ->middleware('api.scope:documents:read');
+        Route::post('opportunities/{id}/documents', [DocumentController::class, 'storeForOpportunity'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+
+        // Nested: documents scoped to a contact
+        Route::get('contacts/{id}/documents', [DocumentController::class, 'indexForContact'])
+            ->middleware('api.scope:documents:read');
+        Route::post('contacts/{id}/documents', [DocumentController::class, 'storeForContact'])
+            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
 
         // Confirmation requests (multi-step AI action gating)
         Route::post('confirmations', [ConfirmationController::class, 'store'])

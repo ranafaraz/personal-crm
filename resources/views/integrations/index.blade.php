@@ -165,19 +165,20 @@
                 <label class="block text-sm font-medium text-slate-700 mb-2">Scopes</label>
                 @php
                 $scopeGroups = [
+                    // ── CRM Core ─────────────────────────────────────────
                     'General'        => ['dashboard:read'],
                     'Contacts'       => ['contacts:read', 'contacts:write'],
                     'Opportunities'  => ['opportunities:read', 'opportunities:write'],
+                    'Documents'      => ['documents:read', 'documents:write'],
+                    'Notes'          => ['notes:write'],
+                    // ── Email & Communication ─────────────────────────────
                     'Drafts'         => ['drafts:read', 'drafts:create'],
-                    'Signatures'     => ['signatures:read', 'signatures:write'],
-                    'Attachments'    => ['attachments:read', 'attachments:write'],
                     'Follow-ups'     => ['followups:read', 'followups:create'],
                     'Replies'        => ['replies:read'],
-                    'Notes'          => ['notes:write'],
-                    'Social — Read'  => ['social:read'],
-                    'Social — Write' => ['social:write'],
-                    'Social — Publish' => ['social:publish'],
-                    'Social — Analytics' => ['social:analytics'],
+                    'Signatures'     => ['signatures:read', 'signatures:write'],
+                    'Attachments'    => ['attachments:read', 'attachments:write'],
+                    // ── Social Studio ─────────────────────────────────────
+                    'Social'         => ['social:read', 'social:write', 'social:publish', 'social:analytics'],
                 ];
                 $defaultScopes = ['dashboard:read', 'contacts:read', 'opportunities:read'];
                 @endphp
