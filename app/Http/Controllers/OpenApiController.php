@@ -550,21 +550,38 @@ class OpenApiController extends Controller
                     'post' => [
                         'operationId' => 'uploadDocument',
                         'summary'     => 'Upload a file to CRM storage',
-                        'description' => 'Send a real file from this conversation as multipart/form-data. CRM stores the file and returns a CRM-hosted download URL. Supply entity IDs to link on creation. Attaching to email_draft does NOT send it. Scope: documents:write.',
-                        'requestBody' => ['required' => true, 'content' => ['multipart/form-data' => ['schema' => [
-                            'type'     => 'object',
-                            'required' => ['name', 'file'],
-                            'properties' => [
-                                'file'           => ['type' => 'string', 'format' => 'binary', 'description' => 'File to upload (max 20 MB)'],
-                                'name'           => ['type' => 'string', 'maxLength' => 500],
-                                'document_type'  => ['type' => 'string', 'enum' => ['resume','cover_letter','proposal','portfolio','reference','contract','report','other']],
-                                'description'    => ['type' => 'string', 'maxLength' => 500],
-                                'opportunity_id' => ['type' => 'integer'],
-                                'contact_id'     => ['type' => 'integer'],
-                                'email_draft_id' => ['type' => 'integer'],
-                                'follow_up_id'   => ['type' => 'integer'],
-                            ],
-                        ]]]],
+                        'description' => 'Stores a real file from this conversation and returns a CRM-hosted download URL. Supply entity IDs to link on creation. Attaching to email_draft does NOT send it. Preferred: send file_base64 (the file content, base64-encoded) + filename as JSON — GPT Actions cannot stream raw multipart file uploads. Scope: documents:write.',
+                        'requestBody' => ['required' => true, 'content' => [
+                            'application/json' => ['schema' => [
+                                'type'     => 'object',
+                                'required' => ['name', 'filename', 'file_base64'],
+                                'properties' => [
+                                    'file_base64'    => ['type' => 'string', 'format' => 'byte', 'description' => 'Base64-encoded file content (max 20 MB decoded)'],
+                                    'filename'       => ['type' => 'string', 'maxLength' => 255, 'description' => 'Original filename including extension, e.g. resume.pdf'],
+                                    'name'           => ['type' => 'string', 'maxLength' => 500],
+                                    'document_type'  => ['type' => 'string', 'enum' => ['resume','cover_letter','proposal','portfolio','reference','contract','report','other']],
+                                    'description'    => ['type' => 'string', 'maxLength' => 500],
+                                    'opportunity_id' => ['type' => 'integer'],
+                                    'contact_id'     => ['type' => 'integer'],
+                                    'email_draft_id' => ['type' => 'integer'],
+                                    'follow_up_id'   => ['type' => 'integer'],
+                                ],
+                            ]],
+                            'multipart/form-data' => ['schema' => [
+                                'type'     => 'object',
+                                'required' => ['name', 'file'],
+                                'properties' => [
+                                    'file'           => ['type' => 'string', 'format' => 'binary', 'description' => 'File to upload (max 20 MB)'],
+                                    'name'           => ['type' => 'string', 'maxLength' => 500],
+                                    'document_type'  => ['type' => 'string', 'enum' => ['resume','cover_letter','proposal','portfolio','reference','contract','report','other']],
+                                    'description'    => ['type' => 'string', 'maxLength' => 500],
+                                    'opportunity_id' => ['type' => 'integer'],
+                                    'contact_id'     => ['type' => 'integer'],
+                                    'email_draft_id' => ['type' => 'integer'],
+                                    'follow_up_id'   => ['type' => 'integer'],
+                                ],
+                            ]],
+                        ]],
                         'responses' => [
                             '201' => ['description' => 'File stored on CRM server. Response includes CRM-hosted download_url.'],
                             '422' => ['description' => 'Validation error'],
@@ -577,16 +594,28 @@ class OpenApiController extends Controller
                     'post' => [
                         'operationId' => 'uploadAttachment',
                         'summary'     => 'Upload an attachment file to CRM storage',
-                        'description' => 'Send a real file from this conversation as multipart/form-data. CRM stores it and returns a CRM-hosted download URL you can then pass as attachment_ids on a draft or follow-up. Scope: attachments:write.',
-                        'requestBody' => ['required' => true, 'content' => ['multipart/form-data' => ['schema' => [
-                            'type'     => 'object',
-                            'required' => ['file'],
-                            'properties' => [
-                                'file'     => ['type' => 'string', 'format' => 'binary', 'description' => 'File to upload (max 20 MB)'],
-                                'category' => ['type' => 'string', 'enum' => ['cv_resume','cover_letter','portfolio','transcript','certificate','id_document','reference','sample_work','proposal','other']],
-                                'notes'    => ['type' => 'string', 'maxLength' => 500],
-                            ],
-                        ]]]],
+                        'description' => 'Stores a real file from this conversation and returns a CRM-hosted download URL you can then pass as attachment_ids on a draft or follow-up. Preferred: send file_base64 (the file content, base64-encoded) + filename as JSON — GPT Actions cannot stream raw multipart file uploads. Scope: attachments:write.',
+                        'requestBody' => ['required' => true, 'content' => [
+                            'application/json' => ['schema' => [
+                                'type'     => 'object',
+                                'required' => ['filename', 'file_base64'],
+                                'properties' => [
+                                    'file_base64' => ['type' => 'string', 'format' => 'byte', 'description' => 'Base64-encoded file content (max 20 MB decoded)'],
+                                    'filename'    => ['type' => 'string', 'maxLength' => 255, 'description' => 'Original filename including extension, e.g. resume.pdf'],
+                                    'category'    => ['type' => 'string', 'enum' => ['cv_resume','cover_letter','portfolio','transcript','certificate','id_document','reference','sample_work','proposal','other']],
+                                    'notes'       => ['type' => 'string', 'maxLength' => 500],
+                                ],
+                            ]],
+                            'multipart/form-data' => ['schema' => [
+                                'type'     => 'object',
+                                'required' => ['file'],
+                                'properties' => [
+                                    'file'     => ['type' => 'string', 'format' => 'binary', 'description' => 'File to upload (max 20 MB)'],
+                                    'category' => ['type' => 'string', 'enum' => ['cv_resume','cover_letter','portfolio','transcript','certificate','id_document','reference','sample_work','proposal','other']],
+                                    'notes'    => ['type' => 'string', 'maxLength' => 500],
+                                ],
+                            ]],
+                        ]],
                         'responses' => [
                             '201' => ['description' => 'File stored on CRM server. Use the returned id as attachment_ids on drafts/follow-ups.'],
                             '422' => ['description' => 'Validation error'],
