@@ -62,8 +62,17 @@ class AttachmentController extends GptController
         ], 201);
     }
 
-    /** Accept a binary file upload and store it on CRM-controlled disk. */
+    /** Accept a binary file upload (or base64 JSON payload) and store it on CRM-controlled disk. */
     public function upload(Request $request): JsonResponse
+    {
+        if ($request->hasFile('file')) {
+            return $this->uploadFromMultipart($request);
+        }
+
+        return $this->uploadFromBase64($request);
+    }
+
+    private function uploadFromMultipart(Request $request): JsonResponse
     {
         $request->validate([
             'file'     => 'required|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,csv,jpg,jpeg,png,gif,webp|max:20480',
@@ -71,17 +80,56 @@ class AttachmentController extends GptController
             'notes'    => 'nullable|string|max:2000',
         ]);
 
-        $user     = $this->apiUser($request);
-        $client   = $this->apiClient($request);
-        $file     = $request->file('file');
-        $filename = $file->getClientOriginalName();
-        $mime     = $file->getMimeType() ?: $file->getClientMimeType();
-        $size     = $file->getSize();
-        $category = $request->input('category', 'other');
+        $file = $request->file('file');
+        $mime = $file->getMimeType() ?: $file->getClientMimeType();
 
         if (! in_array($mime, ApiAttachment::ALLOWED_MIME_TYPES, true)) {
             return response()->json(['error' => "Unsupported MIME type: {$mime}"], 422);
         }
+
+        return $this->persistAttachment(
+            $request,
+            file_get_contents($file->getRealPath()),
+            $file->getClientOriginalName(),
+            $mime,
+        );
+    }
+
+    /**
+     * Upload via a base64-encoded JSON payload. GPT Actions clients cannot
+     * stream multipart/form-data file content, so this is the path they use
+     * to send a real file from the conversation.
+     */
+    private function uploadFromBase64(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file_base64' => 'required|string',
+            'filename'    => 'required|string|max:255',
+            'category'    => ['nullable', Rule::in(ApiAttachment::CATEGORIES)],
+            'notes'       => 'nullable|string|max:2000',
+        ]);
+
+        $contents = $this->decodeBase64File($request->input('file_base64'), ApiAttachment::MAX_SIZE_BYTES);
+        if ($contents instanceof JsonResponse) return $contents;
+
+        $filename  = basename($request->input('filename'));
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $mime      = $this->detectMimeType($contents, $extension);
+
+        if (! in_array($mime, ApiAttachment::ALLOWED_MIME_TYPES, true)) {
+            return response()->json(['error' => "Unsupported MIME type: {$mime}"], 422);
+        }
+
+        return $this->persistAttachment($request, $contents, $filename, $mime);
+    }
+
+    /** Create the attachment record, store the file bytes, and build the response. */
+    private function persistAttachment(Request $request, string $contents, string $filename, string $mime): JsonResponse
+    {
+        $user     = $this->apiUser($request);
+        $client   = $this->apiClient($request);
+        $size     = strlen($contents);
+        $category = $request->input('category', 'other');
 
         $warnings = ApiAttachment::detectSensitiveWarnings($filename, $category);
         $status   = count($warnings) > 0 ? 'warning' : 'valid';
@@ -104,7 +152,7 @@ class AttachmentController extends GptController
         $sanitized   = preg_replace('/[^a-zA-Z0-9._-]/', '_', $filename);
         $storagePath = "api-attachments/{$attachment->id}/{$sanitized}";
 
-        Storage::disk('local')->put("private/{$storagePath}", file_get_contents($file->getRealPath()));
+        Storage::disk('local')->put("private/{$storagePath}", $contents);
 
         $downloadUrl = rtrim(config('app.url'), '/') . "/api/gpt/v1/attachments/{$attachment->id}/download";
 

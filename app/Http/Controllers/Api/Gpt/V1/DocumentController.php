@@ -62,9 +62,15 @@ class DocumentController extends GptController
     /** Handles both multipart/form-data (file upload) and application/json (URL registration). */
     public function store(Request $request): JsonResponse
     {
-        return $request->hasFile('file')
-            ? $this->createFromUpload($request)
-            : $this->createFromUrl($request);
+        if ($request->hasFile('file')) {
+            return $this->createFromUpload($request);
+        }
+
+        if ($request->filled('file_base64')) {
+            return $this->createFromBase64($request);
+        }
+
+        return $this->createFromUrl($request);
     }
 
     public function show(Request $request, int $id): JsonResponse
@@ -461,6 +467,95 @@ class DocumentController extends GptController
 
         $this->audit($request, 'create_document', 'api_document', $doc->id, 'low',
             "name={$doc->name},source=multipart", "id={$doc->id},v={$version->id}");
+
+        $doc->load(['currentVersion', 'links']);
+        $doc->loadCount('versions');
+
+        return $this->documentCreatedResponse($doc, $warnings);
+    }
+
+    /**
+     * Upload via a base64-encoded JSON payload. GPT Actions clients cannot
+     * stream multipart/form-data file content, so this is the path they use
+     * to send a real file from the conversation.
+     */
+    private function createFromBase64(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file_base64'    => 'required|string',
+            'filename'       => 'required|string|max:255',
+            'name'           => 'required|string|max:500',
+            'document_type'  => ['nullable', Rule::in(ApiDocument::DOCUMENT_TYPES)],
+            'description'    => 'nullable|string|max:2000',
+            'version_notes'  => 'nullable|string|max:2000',
+            'opportunity_id' => 'nullable|integer',
+            'contact_id'     => 'nullable|integer',
+            'email_draft_id' => 'nullable|integer',
+            'follow_up_id'   => 'nullable|integer',
+        ]);
+
+        $extension = strtolower(pathinfo($request->input('filename'), PATHINFO_EXTENSION));
+        if (!in_array($extension, explode(',', self::ALLOWED_EXTENSIONS), true)) {
+            return response()->json(['error' => "Unsupported file extension: .{$extension}", 'field' => 'filename'], 422);
+        }
+
+        $contents = $this->decodeBase64File($request->input('file_base64'), self::MAX_SIZE_BYTES);
+        if ($contents instanceof JsonResponse) return $contents;
+
+        $user   = $this->apiUser($request);
+        $client = $this->apiClient($request);
+        $dtype  = $request->input('document_type', 'other');
+
+        $entityLinks = $this->collectEntityLinks($request, $user);
+        if ($entityLinks instanceof JsonResponse) return $entityLinks;
+
+        $originalFilename = basename($request->input('filename'));
+        $warnings    = ApiDocumentVersion::detectSensitiveWarnings($originalFilename, $dtype);
+        $isSensitive = count($warnings) > 0;
+
+        $doc = ApiDocument::create([
+            'tenant_id'          => $user->tenant_id,
+            'user_id'            => $user->id,
+            'name'               => $request->input('name'),
+            'document_type'      => $dtype,
+            'description'        => $request->input('description'),
+            'is_sensitive'       => $isSensitive,
+            'sensitive_warnings' => $isSensitive ? $warnings : null,
+        ]);
+
+        try {
+            $safe = $this->sanitizeFilename($originalFilename);
+            $path = "private/api-documents/{$doc->id}/v1/{$safe}";
+
+            if (!Storage::disk('local')->put($path, $contents)) {
+                $doc->forceDelete();
+                return response()->json(['error' => 'Failed to store file.'], 500);
+            }
+
+            $version = ApiDocumentVersion::create([
+                'api_document_id'           => $doc->id,
+                'version_number'            => 1,
+                'original_filename'         => $originalFilename,
+                'mime_type'                 => $this->detectMimeType($contents, $extension),
+                'size_bytes'                => strlen($contents),
+                'checksum'                  => hash('sha256', $contents),
+                'storage_path'              => $path,
+                'upload_source'             => 'agent',
+                'version_notes'             => $request->input('version_notes'),
+                'uploaded_by_api_client_id' => $client->id,
+            ]);
+
+            $doc->update(['current_version_id' => $version->id]);
+        } catch (\Throwable $e) {
+            Storage::disk('local')->deleteDirectory("private/api-documents/{$doc->id}");
+            $doc->forceDelete();
+            throw $e;
+        }
+
+        $this->saveEntityLinks($doc, $entityLinks, $client);
+
+        $this->audit($request, 'create_document', 'api_document', $doc->id, 'low',
+            "name={$doc->name},source=agent_base64", "id={$doc->id},v={$version->id}");
 
         $doc->load(['currentVersion', 'links']);
         $doc->loadCount('versions');
