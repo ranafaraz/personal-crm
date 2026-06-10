@@ -62,6 +62,10 @@ class DocumentController extends GptController
     /** Handles both multipart/form-data (file upload) and application/json (URL registration). */
     public function store(Request $request): JsonResponse
     {
+        if ($dropped = $this->rejectIfBodyDropped($request)) {
+            return $dropped;
+        }
+
         if ($request->hasFile('file')) {
             return $this->createFromUpload($request);
         }

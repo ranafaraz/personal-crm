@@ -46,6 +46,59 @@ abstract class GptController extends Controller
         return $contents;
     }
 
+    /**
+     * Detect when the HTTP body was silently discarded because it exceeded PHP's
+     * post_max_size. When that happens PHP empties $_POST/$_FILES/php://input but
+     * still reports the original Content-Length, so an upload arrives looking
+     * "empty" and downstream validation returns a misleading "field is required"
+     * error. Return a clear 413 so the agent knows the file was too large.
+     */
+    protected function rejectIfBodyDropped(Request $request): ?JsonResponse
+    {
+        $contentLength = (int) $request->server('CONTENT_LENGTH', 0);
+        $postMax       = $this->iniBytes(ini_get('post_max_size'));
+
+        $bodyEmpty = $request->getContent() === ''
+            && count($request->all()) === 0
+            && ! $request->hasFile('file');
+
+        if ($contentLength > 0 && $postMax > 0 && $contentLength > $postMax && $bodyEmpty) {
+            return response()->json([
+                'error'      => sprintf(
+                    'Upload rejected: request body (%d bytes) exceeds the server limit of %d MB. '
+                    . 'Base64 encoding inflates a file by ~33%%, so the original file must be under ~%d MB. '
+                    . 'Send a smaller file, or register it by public_url instead.',
+                    $contentLength,
+                    intdiv($postMax, 1024 * 1024),
+                    intdiv((int) ($postMax / 1.34), 1024 * 1024)
+                ),
+                'field'      => 'file_base64',
+                'max_bytes'  => $postMax,
+            ], 413);
+        }
+
+        return null;
+    }
+
+    /** Convert a PHP ini shorthand byte value (e.g. "30M", "256K") to bytes. */
+    protected function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+
+        $unit   = strtolower($value[strlen($value) - 1]);
+        $number = (int) $value;
+
+        return match ($unit) {
+            'g'     => $number * 1024 * 1024 * 1024,
+            'm'     => $number * 1024 * 1024,
+            'k'     => $number * 1024,
+            default => (int) $value,
+        };
+    }
+
     /** Best-effort MIME type detection for decoded base64 content. */
     protected function detectMimeType(string $contents, string $extension): string
     {

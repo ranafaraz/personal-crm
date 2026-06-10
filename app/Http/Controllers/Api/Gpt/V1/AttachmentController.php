@@ -65,6 +65,10 @@ class AttachmentController extends GptController
     /** Accept a binary file upload (or base64 JSON payload) and store it on CRM-controlled disk. */
     public function upload(Request $request): JsonResponse
     {
+        if ($dropped = $this->rejectIfBodyDropped($request)) {
+            return $dropped;
+        }
+
         if ($request->hasFile('file')) {
             return $this->uploadFromMultipart($request);
         }
