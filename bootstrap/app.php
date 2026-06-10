@@ -22,5 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // GPT Actions and other API clients don't send an `Accept: application/json`
+        // header, so without this, validation/auth errors on /api/* routes would
+        // redirect (302) to the web login/landing page instead of returning JSON —
+        // leaving the calling agent with HTML instead of an error it can act on.
+        $exceptions->shouldRenderJsonWhen(function ($request) {
+            return $request->is('api/*') || $request->expectsJson();
+        });
     })->create();
