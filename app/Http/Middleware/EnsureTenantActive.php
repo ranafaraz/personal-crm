@@ -22,7 +22,12 @@ class EnsureTenantActive
                     ->withErrors(['email' => 'Your account has been suspended. Please contact support.']);
             }
 
-            if ($tenant->trialExpired()) {
+            // Billing pages must stay reachable or the redirect below loops.
+            if ($request->routeIs('billing.*', 'logout')) {
+                return $next($request);
+            }
+
+            if ($tenant->trialExpired() && ! $tenant->subscribed()) {
                 return redirect()->route('billing.expired');
             }
         }

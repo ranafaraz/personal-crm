@@ -20,6 +20,7 @@ class OpportunityFactory extends Factory
     {
         return [
             'user_id'          => User::factory(),
+            'tenant_id'          => fn (array $attrs) => \App\Models\User::find($attrs['user_id'])?->tenant_id,
             'title'            => fake()->sentence(4),
             'type'             => fake()->randomElement(['job', 'scholarship', 'research', 'grant', 'networking']),
             'organization'     => fake()->company(),

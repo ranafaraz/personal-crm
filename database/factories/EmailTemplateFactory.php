@@ -20,6 +20,7 @@ class EmailTemplateFactory extends Factory
     {
         return [
             'user_id'    => User::factory(),
+            'tenant_id'    => fn (array $attrs) => \App\Models\User::find($attrs['user_id'])?->tenant_id,
             'name'       => fake()->sentence(3),
             'type'       => fake()->randomElement(['initial_outreach', 'follow_up', 'networking', 'other']),
             'subject'    => fake()->sentence(5),

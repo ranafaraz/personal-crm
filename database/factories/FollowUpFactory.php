@@ -17,6 +17,7 @@ class FollowUpFactory extends Factory
     {
         return [
             'user_id'          => User::factory(),
+            'tenant_id'          => fn (array $attrs) => \App\Models\User::find($attrs['user_id'])?->tenant_id,
             'opportunity_id'   => Opportunity::factory(),
             'contact_id'       => null,
             'email_account_id' => EmailAccount::factory(),

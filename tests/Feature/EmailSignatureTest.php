@@ -39,8 +39,8 @@ class EmailSignatureTest extends TestCase
     public function test_setting_default_signature_unsets_previous_default(): void
     {
         $user = User::factory()->create();
-        $first = EmailSignature::create(['user_id' => $user->id, 'name' => 'One', 'is_default' => true]);
-        $second = EmailSignature::create(['user_id' => $user->id, 'name' => 'Two', 'is_default' => false]);
+        $first = EmailSignature::create(['user_id' => $user->id, 'tenant_id' => $user->tenant_id, 'name' => 'One', 'is_default' => true]);
+        $second = EmailSignature::create(['user_id' => $user->id, 'tenant_id' => $user->tenant_id, 'name' => 'Two', 'is_default' => false]);
 
         $this->actingAs($user)
             ->withSession(['_token' => 'test-token'])
@@ -57,6 +57,7 @@ class EmailSignatureTest extends TestCase
         EmailAccount::factory()->create(['user_id' => $user->id, 'is_active' => true]);
         EmailSignature::create([
             'user_id' => $user->id,
+            'tenant_id' => $user->tenant_id,
             'name' => 'Default Signature',
             'body' => '<p>Default sign-off</p>',
             'is_default' => true,
@@ -75,6 +76,7 @@ class EmailSignatureTest extends TestCase
         $account = EmailAccount::factory()->create(['user_id' => $user->id, 'is_active' => true]);
         $signature = EmailSignature::create([
             'user_id' => $user->id,
+            'tenant_id' => $user->tenant_id,
             'name' => 'Main Signature',
             'body' => '<p>Regards</p>',
             'is_default' => true,

@@ -22,6 +22,7 @@ class EmailAccountFactory extends Factory
 
         return [
             'user_id'           => User::factory(),
+            'tenant_id'           => fn (array $attrs) => \App\Models\User::find($attrs['user_id'])?->tenant_id,
             'name'              => fake()->company() . ' Outreach',
             'email'             => $email,
             'from_name'         => fake()->name(),

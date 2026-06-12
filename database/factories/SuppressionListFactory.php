@@ -22,6 +22,7 @@ class SuppressionListFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
+            'tenant_id' => fn (array $attrs) => \App\Models\User::find($attrs['user_id'])?->tenant_id,
             'email'   => fake()->unique()->safeEmail(),
             'reason'  => fake()->randomElement(['unsubscribe', 'bounce', 'complaint', 'manual']),
             'notes'   => fake()->optional(0.4)->sentence(),

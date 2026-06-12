@@ -20,6 +20,7 @@ class ContactFactory extends Factory
     {
         return [
             'user_id'          => User::factory(),
+            'tenant_id'          => fn (array $attrs) => \App\Models\User::find($attrs['user_id'])?->tenant_id,
             'first_name'       => fake()->firstName(),
             'last_name'        => fake()->lastName(),
             'email'            => fake()->unique()->safeEmail(),

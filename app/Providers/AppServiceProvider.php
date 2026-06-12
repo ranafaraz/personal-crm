@@ -72,5 +72,8 @@ class AppServiceProvider extends AuthServiceProvider
         Event::listen(EmailSent::class,     LogEmailSentToTimeline::class);
         Event::listen(EmailFailed::class,   LogEmailFailedToTimeline::class);
         Event::listen(ReplyReceived::class, HandleReplyReceived::class);
+
+        // Paddle webhook events → tenant plan/status sync
+        Event::subscribe(\App\Listeners\SyncTenantPlanFromPaddle::class);
     }
 }
