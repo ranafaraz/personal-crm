@@ -205,7 +205,7 @@ class AuthTest extends TestCase
 
     public function test_dashboard_requires_authentication(): void
     {
-        $response = $this->get('/');
+        $response = $this->get('/dashboard');
 
         $response->assertRedirect(route('login'));
     }

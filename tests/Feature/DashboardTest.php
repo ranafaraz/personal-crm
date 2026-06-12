@@ -28,12 +28,12 @@ class DashboardTest extends TestCase
 
     public function test_dashboard_requires_authentication(): void
     {
-        $this->get('/')->assertRedirect(route('login'));
+        $this->get('/dashboard')->assertRedirect(route('login'));
     }
 
     public function test_dashboard_loads_for_authenticated_user(): void
     {
-        $this->actingAs($this->user)->get('/')->assertOk();
+        $this->actingAs($this->user)->get('/dashboard')->assertOk();
     }
 
     public function test_dashboard_is_also_accessible_at_dashboard_path(): void
@@ -49,7 +49,7 @@ class DashboardTest extends TestCase
     {
         Contact::factory()->count(3)->create(['user_id' => $this->user->id]);
 
-        $response = $this->actingAs($this->user)->get('/');
+        $response = $this->actingAs($this->user)->get('/dashboard');
 
         $response->assertOk();
         // The view should receive a stats array; we just confirm the page loads without error
@@ -68,7 +68,7 @@ class DashboardTest extends TestCase
             'status'  => 'rejected',
         ]);
 
-        $this->actingAs($this->user)->get('/')->assertOk();
+        $this->actingAs($this->user)->get('/dashboard')->assertOk();
 
         $this->assertDatabaseCount('opportunities', 6);
     }
@@ -76,7 +76,7 @@ class DashboardTest extends TestCase
     public function test_dashboard_loads_with_no_data(): void
     {
         // Fresh user with no contacts, opportunities, or email accounts
-        $this->actingAs($this->user)->get('/')->assertOk();
+        $this->actingAs($this->user)->get('/dashboard')->assertOk();
     }
 
     public function test_dashboard_does_not_show_other_users_data(): void
@@ -88,7 +88,7 @@ class DashboardTest extends TestCase
         Opportunity::factory()->count(5)->create(['user_id' => $other->id]);
 
         // Our user has no data — dashboard should still load cleanly
-        $response = $this->actingAs($this->user)->get('/');
+        $response = $this->actingAs($this->user)->get('/dashboard');
         $response->assertOk();
     }
 
@@ -98,7 +98,7 @@ class DashboardTest extends TestCase
 
     public function test_dashboard_accepts_date_filter_parameters(): void
     {
-        $response = $this->actingAs($this->user)->get('/', [
+        $response = $this->actingAs($this->user)->get('/dashboard', [
             'date_from' => now()->subMonth()->toDateString(),
             'date_to'   => now()->toDateString(),
         ]);
@@ -110,7 +110,7 @@ class DashboardTest extends TestCase
     {
         Opportunity::factory()->create(['user_id' => $this->user->id, 'type' => 'job']);
 
-        $response = $this->actingAs($this->user)->get('/?type=job');
+        $response = $this->actingAs($this->user)->get('/dashboard?type=job');
 
         $response->assertOk();
     }
@@ -119,7 +119,7 @@ class DashboardTest extends TestCase
     {
         Opportunity::factory()->create(['user_id' => $this->user->id, 'status' => 'active']);
 
-        $response = $this->actingAs($this->user)->get('/?status=active');
+        $response = $this->actingAs($this->user)->get('/dashboard?status=active');
 
         $response->assertOk();
     }
@@ -131,7 +131,7 @@ class DashboardTest extends TestCase
             'is_active' => true,
         ]);
 
-        $response = $this->actingAs($this->user)->get('/?email_account_id=' . $account->id);
+        $response = $this->actingAs($this->user)->get('/dashboard?email_account_id=' . $account->id);
 
         $response->assertOk();
     }
@@ -148,7 +148,7 @@ class DashboardTest extends TestCase
             'name'      => 'Primary Outreach Account',
         ]);
 
-        $response = $this->actingAs($this->user)->get('/');
+        $response = $this->actingAs($this->user)->get('/dashboard');
 
         $response->assertOk();
         $response->assertSee('Primary Outreach Account');
@@ -162,7 +162,7 @@ class DashboardTest extends TestCase
             'name'      => 'Inactive Account XYZ',
         ]);
 
-        $response = $this->actingAs($this->user)->get('/');
+        $response = $this->actingAs($this->user)->get('/dashboard');
 
         $response->assertOk();
         // Inactive accounts should not appear in the email account filter list

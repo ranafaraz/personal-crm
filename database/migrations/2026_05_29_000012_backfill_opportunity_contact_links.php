@@ -9,10 +9,12 @@ return new class extends Migration
     {
         // Backfill missing pivot rows where a contact is referenced on an
         // opportunity via email_messages or follow_ups but the opportunity_contact
-        // row was never written. Idempotent — insertOrIgnore skips existing rows.
+        // row was never written. Idempotent — the NOT EXISTS guard skips existing
+        // rows. Plain INSERT + CURRENT_TIMESTAMP keeps this portable across
+        // MySQL/MariaDB and the SQLite test database.
         DB::statement("
-            INSERT IGNORE INTO opportunity_contact (opportunity_id, contact_id, created_at, updated_at)
-            SELECT DISTINCT em.opportunity_id, em.contact_id, NOW(), NOW()
+            INSERT INTO opportunity_contact (opportunity_id, contact_id, created_at, updated_at)
+            SELECT DISTINCT em.opportunity_id, em.contact_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             FROM email_messages em
             WHERE em.opportunity_id IS NOT NULL
               AND em.contact_id IS NOT NULL
@@ -24,8 +26,8 @@ return new class extends Migration
         ");
 
         DB::statement("
-            INSERT IGNORE INTO opportunity_contact (opportunity_id, contact_id, created_at, updated_at)
-            SELECT DISTINCT fu.opportunity_id, fu.contact_id, NOW(), NOW()
+            INSERT INTO opportunity_contact (opportunity_id, contact_id, created_at, updated_at)
+            SELECT DISTINCT fu.opportunity_id, fu.contact_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             FROM follow_ups fu
             WHERE fu.opportunity_id IS NOT NULL
               AND fu.contact_id IS NOT NULL

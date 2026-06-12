@@ -218,7 +218,9 @@ Route::middleware('auth')->group(function () {
     // Notifications
     // ---------------------------------------------------------------------------
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    // Notification ids are UUIDs — override the global numeric {id} pattern.
+    Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])
+        ->where('id', '[A-Za-z0-9\-]+')->name('notifications.read');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('notifications/preferences', [NotificationController::class, 'updatePreference'])->name('notifications.preferences');
 });
