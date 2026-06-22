@@ -42,6 +42,122 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
+## Remote access: HTTP / SSE transport (Streamable HTTP)
+
+The same tools/resources can be served over **Streamable HTTP** (MCP spec
+`2025-03-26`) so the server can be added through Claude's **"Add custom
+connector"** dialog, which requires a remote HTTPS URL. The stdio transport
+above is unchanged — `dist/index.js` is still stdio; the HTTP transport is a
+separate entry point, `dist/http.js`.
+
+### Run it
+
+```bash
+npm run build
+npm run start:http       # or: node dist/http.js
+```
+
+Environment variables (see `.env.example`):
+
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `CRM_BASE_URL` | — | Laravel REST API base (e.g. `https://crm.dexdevs.com/api/gpt/v1`) |
+| `CRM_API_KEY` | — | Key the adapter uses to call the CRM REST API |
+| `MCP_HTTP_PORT` | `3000` | Port the HTTP server binds to |
+| `MCP_HTTP_HOST` | `127.0.0.1` | Bind address (keep on loopback behind nginx) |
+| `MCP_HTTP_PATH` | `/mcp` | Path the MCP endpoint is served at |
+| `MCP_BEARER_TOKEN` | falls back to `CRM_API_KEY` | Bearer token clients must present |
+
+### Authentication
+
+Every request to the MCP endpoint must send:
+
+```
+Authorization: Bearer <MCP_BEARER_TOKEN>
+```
+
+The check is constant-time. Missing/invalid tokens get `401`. The `/health`
+endpoint is intentionally unauthenticated for load-balancer / debugging use.
+
+### Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/mcp` | Client → server JSON-RPC (initialize + all calls) |
+| `GET`  | `/mcp` | Server → client SSE notification stream (uses `mcp-session-id`) |
+| `DELETE` | `/mcp` | Terminate a session |
+| `GET`  | `/health` | Unauthenticated health probe |
+
+### Hosting at `crm.dexdevs.com/mcp` (nginx reverse proxy)
+
+Run `node dist/http.js` bound to loopback (e.g. `127.0.0.1:3000`) under a
+process manager (systemd / pm2), and let nginx terminate TLS and proxy `/mcp`:
+
+```nginx
+# Inside the existing server { } block for crm.dexdevs.com (TLS already configured)
+location /mcp {
+    proxy_pass http://127.0.0.1:3000/mcp;
+    proxy_http_version 1.1;
+
+    # Required for SSE streaming (GET /mcp):
+    proxy_set_header Connection '';
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 3600s;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Pass the bearer token through to the Node app:
+    proxy_set_header Authorization $http_authorization;
+}
+
+location = /health {
+    proxy_pass http://127.0.0.1:3000/health;
+}
+```
+
+Prefer a subdomain (`mcp.crm.dexdevs.com`)? Use a dedicated server block and
+proxy `location /` to `http://127.0.0.1:3000` with the same SSE settings; then
+set `MCP_HTTP_PATH=/mcp` (or `/`) to match the URL you advertise.
+
+> Note: keep `MCP_HTTP_HOST=127.0.0.1` so the Node process is never exposed
+> directly — only nginx (with TLS) faces the internet.
+
+### Test with curl before connecting
+
+```bash
+# 1) Health (no auth) — should return {"status":"ok",...}
+curl https://crm.dexdevs.com/health
+
+# 2) Auth gate — no token should return 401
+curl -i -X POST https://crm.dexdevs.com/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+
+# 3) Initialize with the bearer token — should return 200 and an
+#    "mcp-session-id" response header plus the server capabilities.
+curl -i -X POST https://crm.dexdevs.com/mcp \
+  -H 'Authorization: Bearer pocrm_live_your_key_here' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+```
+
+### Add to Claude (custom connector)
+
+In **Settings → Connectors → Add custom connector**, paste:
+
+```
+https://crm.dexdevs.com/mcp
+```
+
+When prompted for authentication, supply the bearer token
+(`MCP_BEARER_TOKEN`, which defaults to your `CRM_API_KEY`).
+
 ## Available Tools
 
 | Tool | Description |
