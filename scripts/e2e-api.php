@@ -21,7 +21,7 @@ if (!$client) {
 }
 
 // ── Mint a short-lived test token ─────────────────────────────────────────
-[$raw, $hash, $prefix] = \App\Models\ApiClientToken::generateRaw('live');
+['raw' => $raw, 'hash' => $hash, 'prefix' => $prefix] = \App\Models\ApiClientToken::generateRaw('live');
 $tok = \App\Models\ApiClientToken::create([
     'api_client_id' => $client->id,
     'name'          => 'e2e-smoke-' . date('YmdHis'),
