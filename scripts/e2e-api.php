@@ -24,6 +24,7 @@ if (!$client) {
 ['raw' => $raw, 'hash' => $hash, 'prefix' => $prefix] = \App\Models\ApiClientToken::generateRaw('live');
 $tok = \App\Models\ApiClientToken::create([
     'api_client_id' => $client->id,
+    'user_id'       => $client->user_id,
     'name'          => 'e2e-smoke-' . date('YmdHis'),
     'token_hash'    => $hash,
     'token_prefix'  => $prefix,
