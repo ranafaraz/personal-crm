@@ -10,6 +10,7 @@
         "laravel/cashier-paddle": "^2.8",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
+        "league/commonmark": "^2.8",
         "league/csv": "^9.28",
         "livewire/livewire": "^4.3",
         "spatie/laravel-activitylog": "^5.0",

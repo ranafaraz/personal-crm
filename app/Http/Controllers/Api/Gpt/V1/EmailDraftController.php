@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Gpt\V1;
 
+use App\Jobs\SendEmailJob;
 use App\Models\ApiAttachment;
 use App\Models\Contact;
 use App\Models\EmailAccount;
@@ -49,7 +50,11 @@ class EmailDraftController extends GptController
             'attachment_ids.*'=> 'integer',
         ]);
 
-        $user = $this->apiUser($request);
+        $user    = $this->apiUser($request);
+        $isMcp   = $this->apiClient($request)->source_type === 'mcp';
+
+        // Bug 2: strip AI-generated "Subject:/From:/To:" header lines from body
+        $data['body'] = $this->sanitizeDraftBody($data['body'], $data['subject']);
 
         // Verify contact ownership
         $contact = Contact::where('user_id', $user->id)->findOrFail($data['contact_id']);
@@ -75,11 +80,15 @@ class EmailDraftController extends GptController
             $opportunity = Opportunity::where('user_id', $user->id)->findOrFail($data['opportunity_id']);
         }
 
-        // Resolve signature and snapshot its rendered HTML
+        // Resolve signature: explicit id → user default → none (Bug 3)
         $signature         = null;
         $renderedSignature = null;
         if (! empty($data['signature_id'])) {
-            $signature         = EmailSignature::where('user_id', $user->id)->findOrFail($data['signature_id']);
+            $signature = EmailSignature::where('user_id', $user->id)->findOrFail($data['signature_id']);
+        } else {
+            $signature = EmailSignature::where('user_id', $user->id)->where('is_default', true)->first();
+        }
+        if ($signature) {
             $renderedSignature = $signature->renderHtml();
         }
 
@@ -155,11 +164,15 @@ class EmailDraftController extends GptController
 
         $draft->load(['emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
 
+        $notice = $isMcp
+            ? 'MCP source — confirmation gate bypassed. Draft is ready to send.'
+            : 'Draft saved. Review it in the CRM before sending.';
+
         $response = [
-            'data'                 => $this->format($draft),
-            'confirmation_required'=> true,
+            'data'                 => $this->format($draft, !$isMcp),
+            'confirmation_required'=> ! $isMcp,
             'send_status'          => 'draft',
-            'message'              => 'Draft saved. Review it in the CRM before sending.',
+            'message'              => $notice,
         ];
 
         if (! empty($attachmentWarnings)) {
@@ -181,6 +194,8 @@ class EmailDraftController extends GptController
         ]);
 
         $user  = $this->apiUser($request);
+        $isMcp = $this->apiClient($request)->source_type === 'mcp';
+
         $draft = EmailMessage::where('user_id', $user->id)
             ->where('status', 'draft')
             ->where('direction', 'outbound')
@@ -190,7 +205,10 @@ class EmailDraftController extends GptController
             $draft->subject = $data['subject'];
         }
         if (array_key_exists('body', $data)) {
-            $draft->body = $data['body'];
+            // Bug 2: sanitize body on update too
+            $subject = $draft->subject;
+            $draft->body    = $this->sanitizeDraftBody($data['body'], $subject);
+            $draft->subject = $subject;
         }
 
         // Re-resolve signature and re-snapshot its rendered HTML (null clears it).
@@ -233,11 +251,15 @@ class EmailDraftController extends GptController
 
         $draft->load(['emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
 
+        $notice = $isMcp
+            ? 'Draft updated. MCP source — use sendDraft to send immediately.'
+            : 'Draft updated. Review it in the CRM before sending.';
+
         return response()->json([
-            'data'                  => $this->format($draft),
-            'confirmation_required' => true,
+            'data'                  => $this->format($draft, !$isMcp),
+            'confirmation_required' => ! $isMcp,
             'send_status'           => 'draft',
-            'message'               => 'Draft updated. Review it in the CRM before sending.',
+            'message'               => $notice,
         ]);
     }
 
@@ -257,20 +279,22 @@ class EmailDraftController extends GptController
     }
 
     /**
-     * Human-triggered send. Hands the draft to the existing scheduled-send
-     * pipeline (crm:send-scheduled → SendEmailJob) by marking it scheduled for
-     * now. This endpoint never dispatches mail directly. Scope: email:send.
+     * Send a draft. For MCP clients the job is dispatched synchronously so the
+     * response reflects the real send outcome. Non-MCP clients use the async
+     * scheduled-send pipeline (crm:send-scheduled → SendEmailJob). Scope: email:send.
      */
     public function send(Request $request, int $id): JsonResponse
     {
         $user  = $this->apiUser($request);
+        $isMcp = $this->apiClient($request)->source_type === 'mcp';
+
         $draft = EmailMessage::where('user_id', $user->id)
             ->where('direction', 'outbound')
             ->findOrFail($id);
 
         if ($draft->status !== 'draft') {
             return response()->json([
-                'error'        => 'Only a pending draft can be queued for send.',
+                'error'          => 'Only a pending draft can be sent.',
                 'current_status' => $draft->status,
             ], 422);
         }
@@ -286,6 +310,31 @@ class EmailDraftController extends GptController
             return response()->json(['error' => 'Recipient is on the suppression list.'], 422);
         }
 
+        if ($isMcp) {
+            // MCP: dispatch synchronously so we return the real outcome
+            try {
+                SendEmailJob::dispatchSync($draft);
+                $draft->refresh();
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'error'    => 'Email send failed: ' . $e->getMessage(),
+                    'draft_id' => $draft->id,
+                ], 500);
+            }
+
+            $this->audit($request, 'send_draft', 'email_message', $draft->id, 'high',
+                "to={$draft->to_email}", "draft_id={$draft->id} sent via mcp", 'success');
+
+            return response()->json([
+                'message'               => 'Email sent successfully.',
+                'draft_id'              => $draft->id,
+                'sent_to'               => $draft->to_email,
+                'sent_at'               => $draft->sent_at?->toISOString(),
+                'bypassed_confirmation' => true,
+            ]);
+        }
+
+        // Non-MCP: queue via existing scheduled-send pipeline
         $draft->status       = 'scheduled';
         $draft->scheduled_at = now();
         $draft->save();
@@ -304,13 +353,52 @@ class EmailDraftController extends GptController
             "to={$draft->to_email}", "draft_id={$draft->id} queued");
 
         return response()->json([
-            'queued'    => true,
-            'draft_id'  => $draft->id,
-            'notice'    => 'Email queued for send. You will be notified on delivery.',
+            'queued'   => true,
+            'draft_id' => $draft->id,
+            'notice'   => 'Email queued for send. You will be notified on delivery.',
         ]);
     }
 
-    public function format(EmailMessage $d): array
+    /**
+     * Send a test copy of a draft to a verification address (Bug 4).
+     * Does NOT update send_status or log as sent. Scope: drafts:read.
+     */
+    public function sendTest(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'test_email' => 'required|email|max:255',
+        ]);
+
+        $user  = $this->apiUser($request);
+        $draft = EmailMessage::where('user_id', $user->id)
+            ->where('direction', 'outbound')
+            ->findOrFail($id);
+
+        $banner   = '<div style="background:#fff3cd;border:2px solid #ffc107;padding:12px 16px;margin-bottom:16px;font-family:sans-serif;font-size:13px;color:#856404;">'
+                  . '⚠️ <strong>TEST EMAIL</strong> — Not sent to original recipient ('
+                  . htmlspecialchars($draft->to_email ?? 'unknown') . ').</div>';
+
+        $body = $banner . $draft->rendered_body;
+        if ($draft->rendered_signature) {
+            $body .= $draft->rendered_signature;
+        }
+
+        \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($draft, $data, $body) {
+            $message->to($data['test_email'])
+                    ->subject('[TEST] ' . ($draft->subject ?? '(no subject)'))
+                    ->html($body);
+        });
+
+        $this->audit($request, 'send_test_email', 'email_message', $draft->id, 'low',
+            "test_to={$data['test_email']}", "draft_id={$draft->id} test sent");
+
+        return response()->json([
+            'message'  => "Test email sent to {$data['test_email']}.",
+            'draft_id' => $draft->id,
+        ]);
+    }
+
+    public function format(EmailMessage $d, bool $confirmationRequired = true): array
     {
         $attachments    = $d->relationLoaded('apiAttachments') ? $d->apiAttachments : collect();
         $attachmentIds  = $attachments->pluck('id')->toArray();
@@ -322,6 +410,8 @@ class EmailDraftController extends GptController
         return [
             'id'                           => $d->id,
             'subject'                      => $d->subject,
+            'body'                         => $d->body,
+            'rendered_body'                => $d->rendered_body,
             'to_email'                     => $d->to_email,
             'to_name'                      => $d->to_name,
             'status'                       => $d->status,
@@ -337,10 +427,33 @@ class EmailDraftController extends GptController
             'linked_documents'             => $linkedDocuments,
             'linked_document_count'        => count($linkedDocuments),
             'linked_documents_notice'      => 'linked_documents are reference files attached via uploadDocument — they are NOT sent with this email. Only items in attachment_ids (added via uploadAttachment + attachment_ids) are sent.',
-            'confirmation_required'        => true,
+            'confirmation_required'        => $confirmationRequired,
             'is_follow_up'                 => $d->is_follow_up,
             'created_at'                   => $d->created_at?->toISOString(),
             'preview'                      => substr(strip_tags($d->body ?? ''), 0, 200),
         ];
+    }
+
+    /**
+     * Strip AI-generated email header lines (Subject:, From:, To:, etc.) that
+     * sometimes leak into the body field when the model generates a full email
+     * literal instead of just the body text.
+     */
+    private function sanitizeDraftBody(string $body, string &$subject): string
+    {
+        $body = ltrim($body);
+
+        // Extract subject if the body starts with a "Subject:" line
+        if (preg_match('/^Subject:\s*(.+?)\r?\n/i', $body, $matches)) {
+            if (empty($subject)) {
+                $subject = trim($matches[1]);
+            }
+            $body = preg_replace('/^Subject:\s*.+?\r?\n+/i', '', $body);
+        }
+
+        // Strip remaining header lines (From:, To:, Date:, CC:, BCC:)
+        $body = preg_replace('/^(From|To|Date|CC|BCC):\s*.+?\r?\n/im', '', $body ?? '');
+
+        return ltrim($body);
     }
 }

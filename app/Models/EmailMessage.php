@@ -72,6 +72,28 @@ class EmailMessage extends Model
     }
 
     // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    public function getRenderedBodyAttribute(): string
+    {
+        $body = $this->body ?? '';
+        if ($this->bodyLooksLikeMarkdown($body)) {
+            return (new \League\CommonMark\CommonMarkConverter())->convert($body)->getContent();
+        }
+        return $body;
+    }
+
+    private function bodyLooksLikeMarkdown(string $body): bool
+    {
+        // Skip if body is already HTML
+        if (preg_match('/<[a-z][\s\S]*>/i', $body)) {
+            return false;
+        }
+        return (bool) preg_match('/\*\*|__|\n[-*] |\n#{1,6} |`/', $body);
+    }
+
+    // -------------------------------------------------------------------------
     // Relationships
     // -------------------------------------------------------------------------
 

@@ -33,6 +33,8 @@ use App\Http\Controllers\Api\Gpt\V1\Webhook\WebhookController;
 use App\Http\Controllers\Api\Gpt\V1\Webhook\WebhookDeliveryController;
 use App\Http\Controllers\Api\Gpt\V1\Analytics\AnalyticsController;
 use App\Http\Controllers\Api\Gpt\V1\Tag\TagController;
+use App\Http\Controllers\Api\Gpt\V1\OutreachPipelineController;
+use App\Http\Controllers\Api\Gpt\V1\BulkCreateController;
 use App\Http\Controllers\Api\Social\AiDraftController as SocialAiDraftController;
 use Illuminate\Support\Facades\Route;
 
@@ -44,7 +46,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('gpt/v1/health', HealthController::class)->middleware('throttle:60,1');
 
 Route::prefix('gpt/v1')
-    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->middleware(['api.client', 'api.log', 'throttle:mcp-api'])
     ->group(function () {
 
         // Identity
@@ -59,6 +61,9 @@ Route::prefix('gpt/v1')
             ->middleware('api.scope:opportunities:read');
         Route::post('opportunities', [OpportunityController::class, 'store'])
             ->middleware(['api.scope:opportunities:write', 'throttle:20,1']);
+        // Dedup check — must be before {id} route (though id pattern [0-9]+ already prevents conflict)
+        Route::get('opportunities/check-duplicate', [OpportunityController::class, 'checkDuplicate'])
+            ->middleware('api.scope:opportunities:read');
         Route::get('opportunities/{id}', [OpportunityController::class, 'show'])
             ->middleware('api.scope:opportunities:read');
         Route::post('opportunities/{id}/contacts', [OpportunityController::class, 'linkContact'])
@@ -124,9 +129,12 @@ Route::prefix('gpt/v1')
             ->middleware(['api.scope:drafts:update', 'throttle:20,1']);
         Route::delete('email-drafts/{id}', [EmailDraftController::class, 'destroy'])
             ->middleware('api.scope:drafts:delete');
-        // Human-triggered send — hands off to the scheduled-send pipeline, never sends inline.
+        // Send — MCP clients send synchronously; non-MCP queues via scheduled-send pipeline.
         Route::post('email-drafts/{id}/send', [EmailDraftController::class, 'send'])
             ->middleware(['api.scope:email:send', 'throttle:10,1']);
+        // Test render — sends a copy to a verification address without marking as sent.
+        Route::post('email-drafts/{id}/send-test', [EmailDraftController::class, 'sendTest'])
+            ->middleware(['api.scope:drafts:read', 'throttle:10,1']);
 
         // Draft attachments (manage after draft creation)
         Route::get('email-drafts/{draft_id}/attachments', [DraftAttachmentController::class, 'index'])
@@ -242,6 +250,18 @@ Route::prefix('gpt/v1')
         Route::post('bulk', [BulkController::class, 'handle'])
             ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
 
+        // Bulk CREATE — up to 20 items per request (opportunities, contacts, drafts)
+        Route::post('bulk/opportunities', [BulkCreateController::class, 'opportunities'])
+            ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
+        Route::post('bulk/contacts', [BulkCreateController::class, 'contacts'])
+            ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
+        Route::post('bulk/drafts', [BulkCreateController::class, 'drafts'])
+            ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
+
+        // Outreach pipeline — orchestrates contact+opportunity+draft+followup+tags in one call
+        Route::post('pipeline/execute', [OutreachPipelineController::class, 'execute'])
+            ->middleware(['api.scope:pipelines:execute', 'throttle:10,1']);
+
         // Confirmation requests (multi-step AI action gating)
         Route::post('confirmations', [ConfirmationController::class, 'store'])
             ->middleware('throttle:10,1');
@@ -283,6 +303,9 @@ Route::prefix('social/v1')
 
         // Confirmation request (human must approve before any publish action)
         Route::post('linkedin/posts/{id}/request-confirmation', [LinkedInPostController::class, 'requestConfirmation'])
+            ->middleware(['api.scope:social:publish', 'throttle:5,1']);
+        // MCP direct publish — bypasses confirmation gate (MCP clients only)
+        Route::post('linkedin/posts/{id}/publish', [LinkedInPostController::class, 'publish'])
             ->middleware(['api.scope:social:publish', 'throttle:5,1']);
 
         // Published-post management (requires approved confirmation + social:publish scope)

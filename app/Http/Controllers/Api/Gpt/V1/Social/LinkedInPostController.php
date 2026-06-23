@@ -63,15 +63,17 @@ class LinkedInPostController extends GptController
             'author_member_urn' => 'nullable|string|max:100',
         ]);
 
+        $isMcp = $this->apiClient($request)->source_type === 'mcp';
+
         $post = SocialPost::create(array_merge($data, [
             'user_id'         => $user->id,
             'tenant_id'       => $user->tenant_id,
             'title_internal'  => $data['title_internal'] ?? '',
             'status'          => 'draft',
-            'approval_status' => 'pending_review',
+            'approval_status' => $isMcp ? 'approved' : 'pending_review',
             'content_version' => 1,
             'idempotency_key' => Str::uuid()->toString(),
-            'created_source'  => 'chatgpt',
+            'created_source'  => $isMcp ? 'mcp' : 'chatgpt',
         ]));
 
         $this->audit($request, 'linkedin_post_create', SocialPost::class, $post->id, 'low');
@@ -308,6 +310,87 @@ class LinkedInPostController extends GptController
             'post_urn'           => $post->linkedin_post_urn,
             'post_url'           => $post->linkedin_post_url,
             'lifecycle_state'    => $data['lifecycleState'] ?? null,
+        ]);
+    }
+
+    // ── MCP direct publish (bypasses confirmation gate) ──────────────────────
+
+    /**
+     * Allow MCP clients to publish or schedule a post directly, skipping the
+     * request-confirmation → human-approve → click flow. Scope: social:publish.
+     */
+    public function publish(Request $request, int $id): JsonResponse
+    {
+        if ($this->apiClient($request)->source_type !== 'mcp') {
+            return response()->json([
+                'error' => 'Direct publish is only available to MCP/Cowork clients. Use request-confirmation flow instead.',
+            ], 403);
+        }
+
+        $user = $this->apiUser($request);
+        $post = $this->findPost($user->id, $id);
+
+        if (! $post) {
+            return response()->json(['error' => 'Post not found.'], 404);
+        }
+
+        $data = $request->validate([
+            'action'       => ['required', Rule::in(['publish_now', 'schedule'])],
+            'scheduled_at' => 'required_if:action,schedule|nullable|date|after:now',
+            'timezone'     => 'nullable|string|max:64',
+        ]);
+
+        if (! in_array($post->status, ['draft', 'approved'], true)) {
+            return response()->json([
+                'error'          => "Cannot publish a post with status '{$post->status}'.",
+                'current_status' => $post->status,
+            ], 422);
+        }
+
+        $post->approval_status = 'approved';
+
+        if ($data['action'] === 'publish_now') {
+            $post->status = 'publishing';
+            $post->save();
+
+            PublishLinkedInPostJob::dispatch($post);
+
+            SocialAuditEvent::log(
+                $user->id, 'linkedin_post_publish_queued', 'success',
+                null, $post->id,
+                ['source' => 'mcp', 'bypassed_confirmation' => true],
+            );
+            $this->audit($request, 'linkedin_publish_mcp', SocialPost::class, $id, 'high',
+                "post_id={$id}", 'dispatched PublishLinkedInPostJob via mcp');
+
+            return response()->json([
+                'message' => 'Post queued for immediate publish.',
+                'post_id' => $post->id,
+                'status'  => $post->status,
+            ]);
+        }
+
+        // action === schedule
+        $timezone    = $data['timezone'] ?? 'UTC';
+        $scheduledAt = \Carbon\Carbon::parse($data['scheduled_at'], $timezone)->utc();
+
+        $post->scheduled_at = $scheduledAt;
+        $post->status       = 'scheduled';
+        $post->save();
+
+        SocialAuditEvent::log(
+            $user->id, 'linkedin_post_scheduled', 'success',
+            null, $post->id,
+            ['source' => 'mcp', 'bypassed_confirmation' => true, 'scheduled_at' => $scheduledAt->toIso8601String()],
+        );
+        $this->audit($request, 'linkedin_schedule_mcp', SocialPost::class, $id, 'high',
+            "scheduled_at={$scheduledAt}", "post_id={$id}");
+
+        return response()->json([
+            'message'      => "Post scheduled for {$scheduledAt->toIso8601String()}.",
+            'post_id'      => $post->id,
+            'status'       => 'scheduled',
+            'scheduled_at' => $scheduledAt->toIso8601String(),
         ]);
     }
 

@@ -223,6 +223,34 @@ class OpportunityController extends GptController
         return response()->json(['deleted' => true, 'id' => $id]);
     }
 
+    /**
+     * Check for a duplicate opportunity without creating one (5C).
+     * GET /api/gpt/v1/opportunities/check-duplicate?company=Acme&role=Engineer
+     */
+    public function checkDuplicate(Request $request): JsonResponse
+    {
+        $company = trim((string) $request->query('company', ''));
+        $role    = trim((string) $request->query('role', ''));
+
+        if ($company === '' || $role === '') {
+            return response()->json(['error' => 'Both company and role query parameters are required.'], 422);
+        }
+
+        $user = $this->apiUser($request);
+
+        $existing = Opportunity::where('user_id', $user->id)
+            ->where('organization', $company)
+            ->where('title', $role)
+            ->withTrashed()
+            ->first();
+
+        return response()->json([
+            'duplicate'    => $existing !== null,
+            'deleted'      => $existing?->trashed() ?? false,
+            'opportunity'  => $existing ? $this->format($existing) : null,
+        ]);
+    }
+
     private function format(Opportunity $o, bool $full = false): array
     {
         $contactsLoaded = $o->relationLoaded('contacts');

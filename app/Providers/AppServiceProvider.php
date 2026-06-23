@@ -22,8 +22,11 @@ use App\Policies\EmailMessagePolicy;
 use App\Policies\EmailSignaturePolicy;
 use App\Policies\EmailTemplatePolicy;
 use App\Policies\OpportunityPolicy;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 
 class AppServiceProvider extends AuthServiceProvider
@@ -65,6 +68,18 @@ class AppServiceProvider extends AuthServiceProvider
         // a TypeError (500) instead of resolving to a 404.
         // ---------------------------------------------------------------
         Route::pattern('id', '[0-9]+');
+
+        // ---------------------------------------------------------------
+        // MCP-aware API rate limiter (300/min for MCP clients, 60 otherwise)
+        // The 'api.client' middleware runs before throttle, so api_client is
+        // already set in request attributes when this callback fires.
+        // ---------------------------------------------------------------
+        RateLimiter::for('mcp-api', function (Request $request) {
+            $client = $request->attributes->get('api_client');
+            $limit  = $client?->source_type === 'mcp' ? 300 : 60;
+            $key    = $client ? 'api_client_' . $client->id : $request->ip();
+            return Limit::perMinute($limit)->by($key);
+        });
 
         // ---------------------------------------------------------------
         // Event → Listener registrations
