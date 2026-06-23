@@ -54,6 +54,10 @@ function hit(string $method, string $path, string $raw, ?array $body = null): ar
     $resp = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    // Throttle writes to avoid nginx limit_req (300 ms between non-GET requests)
+    if ($method !== 'GET') {
+        usleep(300000);
+    }
     return [$code, $resp ? (json_decode($resp, true) ?? []) : []];
 }
 
