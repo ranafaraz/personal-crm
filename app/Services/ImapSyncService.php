@@ -51,6 +51,9 @@ class ImapSyncService
             foreach ($this->syncFolderNames($account) as $folderName) {
                 try {
                     $folder = $client->getFolder($folderName);
+                    if ($folder === null) {
+                        continue;
+                    }
                 } catch (Throwable $e) {
                     Log::info('ImapSyncService: folder unavailable, skipping', [
                         'email_account_id' => $account->id,
@@ -63,7 +66,6 @@ class ImapSyncService
                 $messages = $folder->query()
                     ->since($since)
                     ->leaveUnread()
-                    ->limit(100)
                     ->get();
 
                 foreach ($messages as $imapMessage) {
