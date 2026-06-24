@@ -10,6 +10,7 @@ use App\Events\EmailFailed;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
@@ -88,12 +89,15 @@ class EmailSendingService
             }
         }
 
+        // 4. Apply per-account send delay with jitter to avoid regularity detection
+        $this->applyAccountSendDelay($account);
+
         try {
-            // 4. Build Symfony Mailer transport from account credentials
+            // 5. Build Symfony Mailer transport from account credentials
             $transport = $this->buildTransport($account);
             $mailer    = new Mailer($transport);
 
-            // 5. Build the MIME message
+            // 6. Build the MIME message
             $mime = new Email();
             $mime->from(new Address($account->email, $account->from_name ?? $account->email));
             $mime->to(new Address(
@@ -111,6 +115,11 @@ class EmailSendingService
                 : $this->generateMessageId($account);
 
             $mime->getHeaders()->addIdHeader('Message-ID', trim($messageId, '<>'));
+
+            // One-click List-Unsubscribe (required by Gmail/Yahoo for bulk senders since Feb 2024)
+            $unsubUrl = URL::signedRoute('unsubscribe', ['message' => $emailMessage->id]);
+            $mime->getHeaders()->addTextHeader('List-Unsubscribe', "<{$unsubUrl}>");
+            $mime->getHeaders()->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
 
             // CC / BCC
             if (!empty($emailMessage->cc)) {
@@ -395,6 +404,41 @@ class EmailSendingService
             'failed_at'      => now(),
             'failure_reason' => $reason,
         ]);
+    }
 
+    /**
+     * Enforce the account's min_delay_seconds between sends, adding ±20% jitter
+     * so emails don't arrive at clock-regular intervals (a spam signal).
+     */
+    private function applyAccountSendDelay(EmailAccount $account): void
+    {
+        $minDelay = $account->min_delay_seconds ?? 0;
+        if ($minDelay <= 0) {
+            return;
+        }
+
+        $lastSentAt = $account->emailMessages()
+            ->where('status', 'sent')
+            ->orderByDesc('sent_at')
+            ->value('sent_at');
+
+        if ($lastSentAt === null) {
+            return;
+        }
+
+        $secondsSinceLast = (int) now()->diffInSeconds($lastSentAt, absolute: true);
+
+        // ±20% jitter so each send has a slightly different gap
+        $jitter      = max(1, (int) ($minDelay * 0.2));
+        $targetDelay = $minDelay + random_int(-$jitter, $jitter);
+
+        if ($secondsSinceLast < $targetDelay) {
+            $sleepFor = $targetDelay - $secondsSinceLast;
+            Log::info('EmailSendingService: applying send delay', [
+                'email_account_id' => $account->id,
+                'sleep_seconds'    => $sleepFor,
+            ]);
+            sleep($sleepFor);
+        }
     }
 }

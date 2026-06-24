@@ -52,6 +52,9 @@ class EmailMessage extends Model
         'clicked_at',
         'open_count',
         'click_count',
+        'bounced_at',
+        'bounce_type',
+        'unsubscribed_at',
     ];
 
     protected function casts(): array
@@ -68,6 +71,8 @@ class EmailMessage extends Model
             'clicked_at'       => 'datetime',
             'open_count'       => 'integer',
             'click_count'      => 'integer',
+            'bounced_at'       => 'datetime',
+            'unsubscribed_at'  => 'datetime',
         ];
     }
 

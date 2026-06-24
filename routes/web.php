@@ -18,6 +18,7 @@ use App\Http\Controllers\EmailMessageController;
 use App\Http\Controllers\EmailSignatureController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\EmailTrackingController;
+use App\Http\Controllers\UnsubscribeController;
 use App\Http\Controllers\FollowUpController;
 use App\Http\Controllers\InboxMessageController;
 use App\Http\Controllers\LookupController;
@@ -56,6 +57,11 @@ Route::middleware('signed')->group(function () {
         ->whereNumber('message')->name('track.open');
     Route::get('/t/c/{message}', [EmailTrackingController::class, 'click'])
         ->whereNumber('message')->name('track.click');
+    // One-click unsubscribe — no auth required; signed URL authenticates the request
+    Route::get('/unsubscribe/{message}', [UnsubscribeController::class, 'unsubscribe'])
+        ->whereNumber('message')->name('unsubscribe');
+    Route::post('/unsubscribe/{message}', [UnsubscribeController::class, 'unsubscribe'])
+        ->whereNumber('message')->name('unsubscribe.post');
 });
 
 // ---------------------------------------------------------------------------

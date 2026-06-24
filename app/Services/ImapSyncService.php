@@ -9,6 +9,7 @@ use App\Models\EmailMessage;
 use App\Models\FollowUp;
 use App\Models\InboxAttachment;
 use App\Models\InboxMessage;
+use App\Models\SuppressionList;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -237,6 +238,12 @@ class ImapSyncService
         $receivedAt   = $this->parseDate($imapMsg->getDate()) ?? now();
 
         if (strtolower(trim($fromAddress)) === strtolower(trim($account->email))) {
+            return null;
+        }
+
+        // Bounce / delivery-failure detection — handle without creating an InboxMessage
+        if ($this->isBounce($fromAddress, $subject)) {
+            $this->handleBounce($imapMsg, $account, $fromAddress);
             return null;
         }
 
@@ -524,6 +531,98 @@ class ImapSyncService
             return Carbon::parse((string) $date);
         } catch (Throwable) {
             return null;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Bounce detection
+    // -------------------------------------------------------------------------
+
+    private const BOUNCE_SENDERS = [
+        'mailer-daemon', 'postmaster', 'mail-daemon', 'noreply@bounce',
+        'bounce', 'no-reply@', 'delivery-notification',
+    ];
+
+    private const BOUNCE_SUBJECTS = [
+        'undeliverable', 'delivery status notification', 'delivery status report',
+        'delivery failure', 'failed delivery', 'returned mail',
+        'mail delivery failed', 'mail delivery failure',
+        'message not delivered', 'delivery notification', 'non-delivery',
+        'could not be delivered',
+    ];
+
+    private function isBounce(string $fromAddress, string $subject): bool
+    {
+        $fromLower    = strtolower($fromAddress);
+        $subjectLower = strtolower($subject);
+
+        foreach (self::BOUNCE_SENDERS as $pattern) {
+            if (str_contains($fromLower, $pattern)) {
+                return true;
+            }
+        }
+
+        foreach (self::BOUNCE_SUBJECTS as $keyword) {
+            if (str_contains($subjectLower, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Parse a bounce notification, mark the original outbound message as bounced,
+     * and suppress the recipient so we don't retry sending.
+     */
+    private function handleBounce(
+        \Webklex\PHPIMAP\Message $imapMsg,
+        EmailAccount $account,
+        string $bounceFrom,
+    ): void {
+        $body = (string) ($imapMsg->getTextBody() ?? $imapMsg->getHTMLBody() ?? '');
+
+        // Extract all email addresses mentioned in the bounce body
+        preg_match_all('/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/', $body, $m);
+        $candidates = array_unique($m[0] ?? []);
+
+        foreach ($candidates as $email) {
+            // Skip the sending account's own address
+            if (strcasecmp($email, $account->email) === 0) {
+                continue;
+            }
+
+            $outbound = EmailMessage::where('email_account_id', $account->id)
+                ->where('to_email', strtolower($email))
+                ->where('status', 'sent')
+                ->whereNull('bounced_at')
+                ->orderByDesc('sent_at')
+                ->first();
+
+            if (!$outbound) {
+                continue;
+            }
+
+            $outbound->update([
+                'bounced_at'  => now(),
+                'bounce_type' => 'hard',
+            ]);
+
+            // Suppress so we never retry sending to this address
+            SuppressionList::firstOrCreate(
+                ['user_id' => $account->user_id, 'email' => strtolower($email)],
+                [
+                    'tenant_id' => $account->tenant_id,
+                    'reason'    => 'bounced',
+                    'notes'     => 'Auto-added from bounce notification received ' . now()->toDateTimeString(),
+                ],
+            );
+
+            Log::info('ImapSyncService: bounce handled', [
+                'email_account_id' => $account->id,
+                'bounced_email'    => $email,
+                'outbound_id'      => $outbound->id,
+            ]);
         }
     }
 }
