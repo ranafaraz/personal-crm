@@ -43,10 +43,18 @@ class ImapSyncService
         }
 
         try {
-            // Fetch since last_sync_at, or the last 24h if never synced (cap at 7 days max)
+            // Fetch since last_sync_at, or the last 24h if never synced.
+            // Cap the lookback at 2 days to prevent re-fetching a large backlog on
+            // accounts that have been dormant or where previous syncs timed out.
             $since = $account->last_sync_at
-                ? $account->last_sync_at->subMinutes(5)  // small overlap to avoid gaps
-                : Carbon::now()->subDays(1);
+                ? Carbon::parse($account->last_sync_at)->subMinutes(5)
+                : Carbon::now()->subHours(24);
+
+            $since = $since->max(Carbon::now()->subDays(2));
+
+            // Stamp last_sync_at now so future runs don't re-fetch the same window
+            // even if this run is killed mid-way.
+            $account->update(['last_sync_at' => now()]);
 
             foreach ($this->syncFolderNames($account) as $folderName) {
                 try {
@@ -93,8 +101,7 @@ class ImapSyncService
                 }
             }
 
-            // Update last_sync_at
-            $account->update(['last_sync_at' => now()]);
+            // last_sync_at was already stamped at sync start (above)
 
         } catch (Throwable $e) {
             Log::error('ImapSyncService: sync error', [
