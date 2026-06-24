@@ -27,7 +27,7 @@ jobs:
 
             # ── Pull latest code ──────────────────────────────────────
             git config --global --add safe.directory /var/www/crm.dexdevs.com
-            git remote set-url origin git@github.com:ranafaraz/personal-crm.git
+            git remote set-url origin git@github.com:ranafaraz/applai.git
             git fetch origin main
             git reset --hard origin/main
 

@@ -13,7 +13,7 @@ class OpenApiController extends Controller
         $schema = [
             'openapi' => '3.1.0',
             'info' => [
-                'title'       => 'Personal Outreach CRM – GPT Actions API',
+                'title'       => 'Applai – GPT Actions API',
                 'version'     => '1.6.0',
                 'description' => 'Manage CRM data on behalf of the authenticated user. All actions require an X-Api-Key header. Email drafts are NEVER sent automatically — the user must review and send from the CRM UI.',
             ],
@@ -1015,7 +1015,7 @@ class OpenApiController extends Controller
         $schema = [
             'openapi'    => '3.1.0',
             'info'       => [
-                'title'       => 'Personal CRM – LinkedIn Social Studio',
+                'title'       => 'Applai – LinkedIn Social Studio',
                 'version'     => '1.0.0',
                 'description' => 'Create and schedule LinkedIn posts via the CRM. Nothing is published automatically — the human must approve in the CRM first. Requires X-Api-Key. Scopes: social:read, social:write, social:publish, social:analytics.',
             ],
@@ -1371,7 +1371,7 @@ class OpenApiController extends Controller
         $schema = [
             'openapi'    => '3.1.0',
             'info'       => [
-                'title'       => 'Personal CRM – Agent Actions API',
+                'title'       => 'Applai – Agent Actions API',
                 'version'     => '1.0.0',
                 'description' => 'Extended agent-backend endpoints: content calendar, research papers, proposals, YouTube, freelance projects, pipelines + scheduler, webhooks, analytics, tags, and bulk operations. All actions require an X-Api-Key header (format pocrm_live_<token>). Lifecycle actions (publish / send / complete / execute / run / test) only record CRM state — they never contact external services.',
             ],

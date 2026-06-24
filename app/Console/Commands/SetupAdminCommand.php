@@ -18,7 +18,7 @@ class SetupAdminCommand extends Command
         // 1. Tenant
         $tenant = Tenant::firstOrCreate(
             ['slug' => 'default'],
-            ['name' => 'Personal CRM', 'plan' => 'pro', 'status' => 'active']
+            ['name' => 'Applai', 'plan' => 'pro', 'status' => 'active']
         );
         $this->info("Tenant: {$tenant->name} (ID {$tenant->id})");
 

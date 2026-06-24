@@ -1,7 +1,7 @@
 {
-  "name": "personal-crm-mcp",
+  "name": "applai-mcp",
   "version": "1.1.0",
-  "description": "MCP adapter for Personal Outreach CRM (stdio + Streamable HTTP transports)",
+  "description": "MCP adapter for Applai (stdio + Streamable HTTP transports)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

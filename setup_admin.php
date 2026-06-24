@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Hash;
 // 1. Tenant
 $tenant = Tenant::firstOrCreate(
     ['slug' => 'default'],
-    ['name' => 'Personal CRM', 'plan' => 'pro', 'status' => 'active']
+    ['name' => 'Applai', 'plan' => 'pro', 'status' => 'active']
 );
 echo "Tenant ID: {$tenant->id}\n";
 
