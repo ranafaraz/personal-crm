@@ -153,13 +153,20 @@
                 </form>
             @endif
 
-            @if($post->isApproved())
+            @php
+                $unpublishedTargets = $post->targets->where('status', '!=', 'published');
+                $retryMode = $post->status === 'failed' && $unpublishedTargets->isNotEmpty();
+                $confirmMsg = $retryMode
+                    ? 'Retry publishing to all failed targets?'
+                    : 'Publish this post to all selected targets right now? This cannot be undone.';
+            @endphp
+            @if($post->isApproved() && $unpublishedTargets->isNotEmpty())
                 <form method="POST" action="{{ route('social-studio.posts.publish-now', $post->id) }}"
-                      onsubmit="return confirm('Publish this post to all selected targets right now? This cannot be undone.')">
+                      onsubmit="return confirm('{{ $confirmMsg }}')">
                     @csrf
                     <input type="hidden" name="confirm" value="1">
-                    <button type="submit" class="text-sm bg-blue-700 hover:bg-blue-800 text-white font-medium px-4 py-2 rounded-lg transition">
-                        Publish Now
+                    <button type="submit" class="text-sm {{ $retryMode ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-700 hover:bg-blue-800' }} text-white font-medium px-4 py-2 rounded-lg transition">
+                        {{ $retryMode ? 'Retry Failed Targets' : 'Publish Now' }}
                     </button>
                 </form>
             @endif

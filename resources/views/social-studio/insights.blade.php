@@ -99,16 +99,27 @@
 
                 <div class="grid md:grid-cols-4 gap-4 p-5">
                     @if($isLinkedIn)
-                        <div class="border border-slate-200 rounded-lg p-4">
-                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Followers</p>
-                            <p class="text-2xl font-bold text-slate-800 mt-1">{{ $summary['follower_count'] !== null ? number_format($summary['follower_count']) : '—' }}</p>
-                        </div>
-                        @foreach(['impressionCount' => 'Impressions', 'likeCount' => 'Likes', 'clickCount' => 'Clicks'] as $key => $label)
-                            <div class="border border-slate-200 rounded-lg p-4">
-                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">{{ $label }}</p>
-                                <p class="text-2xl font-bold text-slate-800 mt-1">{{ isset($summary['aggregate'][$key]) ? number_format($summary['aggregate'][$key]) : '—' }}</p>
+                        @php
+                            $noLinkedInData = $summary['follower_count'] === null && empty($summary['aggregate']);
+                        @endphp
+                        @if($noLinkedInData)
+                            <div class="md:col-span-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+                                No LinkedIn analytics data yet.
+                                Click <strong>Sync LinkedIn</strong> above to fetch your follower count and post metrics.
+                                Analytics require the <code>r_member_postAnalytics</code> and <code>r_member_profileAnalytics</code> scopes on your LinkedIn app — if data still shows &mdash; after syncing, your app may need those scopes enabled.
                             </div>
-                        @endforeach
+                        @else
+                            <div class="border border-slate-200 rounded-lg p-4">
+                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Followers</p>
+                                <p class="text-2xl font-bold text-slate-800 mt-1">{{ $summary['follower_count'] !== null ? number_format($summary['follower_count']) : '—' }}</p>
+                            </div>
+                            @foreach(['impressionCount' => 'Impressions', 'likeCount' => 'Likes', 'clickCount' => 'Clicks'] as $key => $label)
+                                <div class="border border-slate-200 rounded-lg p-4">
+                                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">{{ $label }}</p>
+                                    <p class="text-2xl font-bold text-slate-800 mt-1">{{ isset($summary['aggregate'][$key]) ? number_format($summary['aggregate'][$key]) : '—' }}</p>
+                                </div>
+                            @endforeach
+                        @endif
                     @else
                         <div class="border border-slate-200 rounded-lg p-4">
                             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Published</p>

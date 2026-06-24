@@ -6,6 +6,7 @@ use App\Models\SocialAccount;
 use App\Models\SocialPost;
 use App\Services\Social\LinkedInAnalyticsService;
 use App\Services\Social\LinkedInPermissionException;
+use App\Services\Social\LinkedInPermanentException;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -43,10 +44,11 @@ class SyncLinkedInAnalyticsJob implements ShouldQueue
             if ($post && $post->linkedin_post_urn) {
                 try {
                     $service->syncPostAnalytics($token, $account, $post);
-                } catch (LinkedInPermissionException $e) {
-                    Log::info('SyncLinkedInAnalyticsJob: post analytics permission denied', [
+                } catch (LinkedInPermissionException | LinkedInPermanentException $e) {
+                    Log::info('SyncLinkedInAnalyticsJob: post analytics unavailable', [
                         'account_id' => $this->accountId,
                         'post_id'    => $this->postId,
+                        'reason'     => $e->getMessage(),
                     ]);
                 }
             }
@@ -56,14 +58,20 @@ class SyncLinkedInAnalyticsJob implements ShouldQueue
         // Account-level sync: aggregate post stats + follower stats
         try {
             $service->syncAggregateAnalytics($token, $account);
-        } catch (LinkedInPermissionException) {
-            // skip silently
+        } catch (LinkedInPermissionException | LinkedInPermanentException $e) {
+            Log::info('SyncLinkedInAnalyticsJob: aggregate analytics unavailable', [
+                'account_id' => $this->accountId,
+                'reason'     => $e->getMessage(),
+            ]);
         }
 
         try {
             $service->syncFollowerAnalytics($token, $account);
-        } catch (LinkedInPermissionException) {
-            // skip silently
+        } catch (LinkedInPermissionException | LinkedInPermanentException $e) {
+            Log::info('SyncLinkedInAnalyticsJob: follower analytics unavailable', [
+                'account_id' => $this->accountId,
+                'reason'     => $e->getMessage(),
+            ]);
         }
     }
 
