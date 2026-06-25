@@ -85,6 +85,16 @@ class EmailDraftController extends GptController
         // Verify contact ownership
         $contact = Contact::where('user_id', $user->id)->findOrFail($data['contact_id']);
 
+        // A contact may legitimately have no email (e.g. application portals),
+        // but an email draft needs a recipient. Return a clear 422 instead of
+        // letting the null cascade into a DB constraint 500.
+        if (empty($contact->email)) {
+            return response()->json([
+                'error'   => 'Cannot create an email draft for a contact with no email address. Add an email to the contact first.',
+                'contact' => ['id' => $contact->id],
+            ], 422);
+        }
+
         // Block suppressed contacts
         $suppressed = in_array($contact->status, ['suppressed', 'bounced'], true);
         if (! $suppressed && $contact->email) {
