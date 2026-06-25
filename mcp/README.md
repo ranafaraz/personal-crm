@@ -7,10 +7,26 @@ MCP server that exposes Personal Outreach CRM data as tools and resources for MC
 ```bash
 cd mcp
 cp .env.example .env
-# Edit .env: fill in CRM_BASE_URL and CRM_API_KEY
+# Edit .env: fill in POCRM_BASE_URL and POCRM_API_KEY
 npm install
 npm run build
 ```
+
+> **Env var names:** the adapter reads `POCRM_BASE_URL` / `POCRM_API_KEY`
+> (preferred), and falls back to the legacy `CRM_BASE_URL` / `CRM_API_KEY` if
+> those are unset. Either set works.
+
+### Built-in pacing & idempotency
+
+The adapter handles rate limits and retries for you, so the agent never has to
+hand-pace its writes:
+
+- **Serialized writes** — all `POST`/`PATCH`/`DELETE` calls run one at a time.
+- **Retry-After aware** — on `429` the client waits the server's `Retry-After`
+  (or an exponential backoff) and retries, up to 4 attempts.
+- **Idempotency** — any write tool accepts an optional `idempotency_key`. A
+  repeated call with the same key returns the first call's result instead of
+  issuing a second request, preventing duplicate drafts/contacts on retries.
 
 ## Running
 
@@ -34,8 +50,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "command": "node",
       "args": ["/absolute/path/to/personal-crm/mcp/dist/index.js"],
       "env": {
-        "CRM_BASE_URL": "https://your-crm.com/api/gpt/v1",
-        "CRM_API_KEY": "pocrm_live_..."
+        "POCRM_BASE_URL": "https://crm.dexdevs.com/api/gpt/v1",
+        "POCRM_API_KEY": "pocrm_live_..."
       }
     }
   }
@@ -61,12 +77,13 @@ Environment variables (see `.env.example`):
 
 | Var | Default | Purpose |
 |-----|---------|---------|
-| `CRM_BASE_URL` | — | Laravel REST API base (e.g. `https://crm.dexdevs.com/api/gpt/v1`) |
-| `CRM_API_KEY` | — | Key the adapter uses to call the CRM REST API |
+| `POCRM_BASE_URL` | — | Laravel REST API base (e.g. `https://crm.dexdevs.com/api/gpt/v1`). Legacy alias: `CRM_BASE_URL` |
+| `POCRM_API_KEY` | — | Key the adapter uses to call the CRM REST API. Legacy alias: `CRM_API_KEY` |
+| `MCP_PUBLIC_URL` | — | Public URL the connector is reachable at (docs only) |
 | `MCP_HTTP_PORT` | `3000` | Port the HTTP server binds to |
 | `MCP_HTTP_HOST` | `127.0.0.1` | Bind address (keep on loopback behind nginx) |
 | `MCP_HTTP_PATH` | `/mcp` | Path the MCP endpoint is served at |
-| `MCP_BEARER_TOKEN` | falls back to `CRM_API_KEY` | Bearer token clients must present |
+| `MCP_BEARER_TOKEN` | falls back to `POCRM_API_KEY` | Bearer token clients must present |
 
 ### Authentication
 
@@ -173,11 +190,37 @@ When prompted for authentication, supply the bearer token
 | `crm_add_note` | Append note to contact or opportunity |
 | `crm_create_email_draft` | Save draft for review (never sends) |
 | `crm_get_email_draft_preview` | Get rendered preview of a draft |
+| `crm_update_opportunity` | Update opportunity fields |
+| `crm_delete_opportunity` | Soft-delete an opportunity |
+| `crm_update_contact` | Update contact fields |
+| `crm_check_duplicate` | Check if an opportunity exists for a company + role |
+| `crm_create_email_draft` | Save draft (auto-approved for MCP; never sends) |
+| `crm_update_draft` | Update a draft (subject/body/signature/attachments) |
+| `crm_list_drafts` | List drafts, filter by opportunity/contact/status + paginate |
+| `crm_get_email_draft_preview` | Get rendered preview of a draft |
+| `crm_schedule_draft` | Schedule a draft to send at a future time |
+| `crm_unschedule_draft` | Revert a scheduled draft back to draft |
+| `crm_send_draft` | Send a draft (synchronous for MCP) |
+| `crm_send_test_email` | Send a non-committing test copy of a draft |
 | `crm_create_followup` | Schedule reminder-only follow-up |
-| `crm_recent_replies` | Get recent inbound replies |
+| `crm_update_followup` | Update a follow-up |
+| `crm_recent_replies` | Get recent inbound replies (with sentiment) |
+| `crm_list_followups_due` | Follow-ups due today or overdue |
+| `crm_list_signatures` | List available email signatures |
 | `crm_list_documents` | List documents (optionally scoped to contact or opportunity) |
 | `crm_get_document` | Get document by ID with version history |
+| `crm_register_document` | Register an externally-hosted document by URL |
+| `crm_upload_document` | Upload a document from base64 bytes (≤20 MB), hosted by the CRM |
+| `crm_register_attachment` | Register a sendable email attachment by URL |
+| `crm_link_attachment_to_draft` | Attach registered attachments to a draft (sent with the email) |
+| `crm_register_proposal` | Register a generated proposal |
 | `crm_ingest_opportunities` | Bulk ingest from external sources |
+| `crm_bulk_create_opportunities` / `_contacts` / `_drafts` | Create up to 20 of each in one call |
+| `crm_pipeline_execute` | One-call outreach pipeline (contact → opportunity → draft → follow-up → tags) |
+| `crm_publish_linkedin_post` | Publish/schedule a LinkedIn post (Social Studio) |
+
+All write tools accept an optional `idempotency_key`. `attachment_ids` on a
+draft are **sent** with the email; linked documents are reference-only.
 
 ## Available Resources
 
@@ -189,6 +232,21 @@ When prompted for authentication, supply the bearer token
 | `crm://contacts/recent` | Recent contacts |
 | `crm://followups/due` | Due today or overdue |
 | `crm://email-drafts/pending-review` | Drafts awaiting review |
+
+## Smoke test
+
+`scripts/smoke.mjs` exercises the REST surface end to end (GET /me → create a
+no-email contact → create an emailed contact, opportunity, and draft → schedule
+the draft +5 min → clean everything up). It never sends a real email.
+
+```bash
+POCRM_BASE_URL=https://crm.dexdevs.com/api/gpt/v1 \
+POCRM_API_KEY=pocrm_live_xxx \
+node scripts/smoke.mjs
+```
+
+Exit code `0` = all steps passed. The key is read from the environment and
+never printed.
 
 ## Security
 

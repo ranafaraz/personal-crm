@@ -24,7 +24,7 @@ const SCOPES = ['crm:read', 'crm:write'];
 // Bearer token that gates access to the MCP endpoint. Defaults to the CRM API
 // key so there is a single secret to manage, but can be overridden with a
 // dedicated token via MCP_BEARER_TOKEN.
-const BEARER_TOKEN = process.env.MCP_BEARER_TOKEN ?? process.env.CRM_API_KEY ?? '';
+const BEARER_TOKEN = process.env.MCP_BEARER_TOKEN ?? process.env.POCRM_API_KEY ?? process.env.CRM_API_KEY ?? '';
 const OAUTH_CLIENT_ID = process.env.MCP_OAUTH_CLIENT_ID ?? '';
 const OAUTH_CLIENT_SECRET = process.env.MCP_OAUTH_CLIENT_SECRET ?? '';
 const TOKEN_SIGNING_SECRET = process.env.MCP_OAUTH_TOKEN_SECRET ?? BEARER_TOKEN;
@@ -32,7 +32,7 @@ const ACCESS_TOKEN_TTL_SECONDS = Number(process.env.MCP_OAUTH_ACCESS_TOKEN_TTL_S
 const REFRESH_TOKEN_TTL_SECONDS = Number(process.env.MCP_OAUTH_REFRESH_TOKEN_TTL_SECONDS ?? 60 * 60 * 24 * 30);
 
 if (!BEARER_TOKEN && (!OAUTH_CLIENT_ID || !OAUTH_CLIENT_SECRET || !TOKEN_SIGNING_SECRET)) {
-  console.error('ERROR: set MCP_BEARER_TOKEN/CRM_API_KEY or MCP_OAUTH_CLIENT_ID + MCP_OAUTH_CLIENT_SECRET + MCP_OAUTH_TOKEN_SECRET.');
+  console.error('ERROR: set MCP_BEARER_TOKEN/POCRM_API_KEY or MCP_OAUTH_CLIENT_ID + MCP_OAUTH_CLIENT_SECRET + MCP_OAUTH_TOKEN_SECRET.');
   process.exit(1);
 }
 
