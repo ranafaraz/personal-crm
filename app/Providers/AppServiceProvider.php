@@ -82,6 +82,29 @@ class AppServiceProvider extends AuthServiceProvider
         });
 
         // ---------------------------------------------------------------
+        // Per-route write limiters (replace the old hardcoded throttle:N,1
+        // which was keyed by IP and stacked under mcp-api, re-capping MCP
+        // batch work to ~5-20/min and surfacing 429s on bursts of 6-10
+        // writes). These are keyed by api_client_id and give MCP clients a
+        // generous burst while keeping CustomGPT/other clients protected.
+        // Laravel emits Retry-After automatically on 429 so clients can pace.
+        // ---------------------------------------------------------------
+        RateLimiter::for('mcp-write', function (Request $request) {
+            $client = $request->attributes->get('api_client');
+            $limit  = $client?->source_type === 'mcp' ? 200 : 30;
+            $key    = $client ? 'api_client_' . $client->id : $request->ip();
+            return Limit::perMinute($limit)->by($key);
+        });
+
+        // Tighter bucket for the most expensive/irreversible writes (sends).
+        RateLimiter::for('mcp-send', function (Request $request) {
+            $client = $request->attributes->get('api_client');
+            $limit  = $client?->source_type === 'mcp' ? 100 : 10;
+            $key    = $client ? 'api_client_' . $client->id : $request->ip();
+            return Limit::perMinute($limit)->by($key);
+        });
+
+        // ---------------------------------------------------------------
         // Event → Listener registrations
         // ---------------------------------------------------------------
         Event::listen(EmailSent::class,     LogEmailSentToTimeline::class);

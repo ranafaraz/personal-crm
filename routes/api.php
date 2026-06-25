@@ -61,18 +61,18 @@ Route::prefix('gpt/v1')
         Route::get('opportunities', [OpportunityController::class, 'index'])
             ->middleware('api.scope:opportunities:read');
         Route::post('opportunities', [OpportunityController::class, 'store'])
-            ->middleware(['api.scope:opportunities:write', 'throttle:20,1']);
+            ->middleware(['api.scope:opportunities:write', 'throttle:mcp-write']);
         // Dedup check — must be before {id} route (though id pattern [0-9]+ already prevents conflict)
         Route::get('opportunities/check-duplicate', [OpportunityController::class, 'checkDuplicate'])
             ->middleware('api.scope:opportunities:read');
         Route::get('opportunities/{id}', [OpportunityController::class, 'show'])
             ->middleware('api.scope:opportunities:read');
         Route::post('opportunities/{id}/contacts', [OpportunityController::class, 'linkContact'])
-            ->middleware(['api.scope:opportunities:write', 'throttle:20,1']);
+            ->middleware(['api.scope:opportunities:write', 'throttle:mcp-write']);
         Route::post('opportunities/{id}/notes', [OpportunityController::class, 'addNote'])
-            ->middleware(['api.scope:notes:write', 'throttle:20,1']);
+            ->middleware(['api.scope:notes:write', 'throttle:mcp-write']);
         Route::patch('opportunities/{id}', [OpportunityController::class, 'update'])
-            ->middleware(['api.scope:opportunities:write', 'throttle:20,1']);
+            ->middleware(['api.scope:opportunities:write', 'throttle:mcp-write']);
         Route::delete('opportunities/{id}', [OpportunityController::class, 'destroy'])
             ->middleware('api.scope:opportunities:delete');
 
@@ -80,13 +80,13 @@ Route::prefix('gpt/v1')
         Route::get('contacts', [ContactController::class, 'index'])
             ->middleware('api.scope:contacts:read');
         Route::post('contacts', [ContactController::class, 'store'])
-            ->middleware(['api.scope:contacts:write', 'throttle:20,1']);
+            ->middleware(['api.scope:contacts:write', 'throttle:mcp-write']);
         Route::get('contacts/{id}', [ContactController::class, 'show'])
             ->middleware('api.scope:contacts:read');
         Route::post('contacts/{id}/notes', [ContactController::class, 'addNote'])
-            ->middleware(['api.scope:notes:write', 'throttle:20,1']);
+            ->middleware(['api.scope:notes:write', 'throttle:mcp-write']);
         Route::patch('contacts/{id}', [ContactController::class, 'update'])
-            ->middleware(['api.scope:contacts:write', 'throttle:20,1']);
+            ->middleware(['api.scope:contacts:write', 'throttle:mcp-write']);
         Route::delete('contacts/{id}', [ContactController::class, 'destroy'])
             ->middleware('api.scope:contacts:delete');
 
@@ -96,11 +96,11 @@ Route::prefix('gpt/v1')
         Route::get('signatures', [SignatureController::class, 'index'])
             ->middleware('api.scope:signatures:read');
         Route::post('signatures', [SignatureController::class, 'store'])
-            ->middleware(['api.scope:signatures:write', 'throttle:20,1']);
+            ->middleware(['api.scope:signatures:write', 'throttle:mcp-write']);
         Route::get('signatures/{id}', [SignatureController::class, 'show'])
             ->middleware('api.scope:signatures:read');
         Route::patch('signatures/{id}', [SignatureController::class, 'update'])
-            ->middleware(['api.scope:signatures:write', 'throttle:20,1']);
+            ->middleware(['api.scope:signatures:write', 'throttle:mcp-write']);
         Route::delete('signatures/{id}', [SignatureController::class, 'destroy'])
             ->middleware('api.scope:signatures:write');
 
@@ -108,10 +108,10 @@ Route::prefix('gpt/v1')
         // Attachments
         // ---------------------------------------------------------------------------
         Route::post('attachments', [AttachmentController::class, 'store'])
-            ->middleware(['api.scope:attachments:write', 'throttle:20,1']);
+            ->middleware(['api.scope:attachments:write', 'throttle:mcp-write']);
         // File upload — must be registered before {id} wildcard
         Route::post('attachments/upload', [AttachmentController::class, 'upload'])
-            ->middleware(['api.scope:attachments:write', 'throttle:20,1']);
+            ->middleware(['api.scope:attachments:write', 'throttle:mcp-write']);
         Route::get('attachments/{id}', [AttachmentController::class, 'show'])
             ->middleware('api.scope:attachments:read');
         Route::get('attachments/{id}/download', [AttachmentController::class, 'download'])
@@ -125,25 +125,25 @@ Route::prefix('gpt/v1')
         Route::get('email-drafts', [EmailDraftController::class, 'index'])
             ->middleware('api.scope:drafts:read');
         Route::post('email-drafts', [EmailDraftController::class, 'store'])
-            ->middleware(['api.scope:drafts:create', 'throttle:5,1']);
+            ->middleware(['api.scope:drafts:create', 'throttle:mcp-write']);
         Route::patch('email-drafts/{id}', [EmailDraftController::class, 'update'])
-            ->middleware(['api.scope:drafts:update', 'throttle:20,1']);
+            ->middleware(['api.scope:drafts:update', 'throttle:mcp-write']);
         Route::delete('email-drafts/{id}', [EmailDraftController::class, 'destroy'])
             ->middleware('api.scope:drafts:delete');
         // Send — MCP clients send synchronously; non-MCP queues via scheduled-send pipeline.
         Route::post('email-drafts/{id}/send', [EmailDraftController::class, 'send'])
-            ->middleware(['api.scope:email:send', 'throttle:10,1']);
+            ->middleware(['api.scope:email:send', 'throttle:mcp-send']);
         // Schedule a draft for future delivery / cancel a scheduled send.
         Route::post('email-drafts/{id}/schedule', [EmailDraftController::class, 'schedule'])
-            ->middleware(['api.scope:email:send', 'throttle:10,1']);
+            ->middleware(['api.scope:email:send', 'throttle:mcp-send']);
         Route::post('email-drafts/{id}/unschedule', [EmailDraftController::class, 'unschedule'])
-            ->middleware(['api.scope:email:send', 'throttle:10,1']);
+            ->middleware(['api.scope:email:send', 'throttle:mcp-send']);
 
         // Draft attachments (manage after draft creation)
         Route::get('email-drafts/{draft_id}/attachments', [DraftAttachmentController::class, 'index'])
             ->middleware('api.scope:drafts:read');
         Route::post('email-drafts/{draft_id}/attachments', [DraftAttachmentController::class, 'store'])
-            ->middleware(['api.scope:drafts:create', 'api.scope:attachments:write', 'throttle:20,1']);
+            ->middleware(['api.scope:drafts:create', 'api.scope:attachments:write', 'throttle:mcp-write']);
         Route::delete('email-drafts/{draft_id}/attachments/{attachment_id}', [DraftAttachmentController::class, 'destroy'])
             ->middleware('api.scope:drafts:create');
 
@@ -159,14 +159,14 @@ Route::prefix('gpt/v1')
         Route::get('follow-ups', [FollowUpController::class, 'index'])
             ->middleware('api.scope:followups:read');
         Route::post('follow-ups', [FollowUpController::class, 'store'])
-            ->middleware(['api.scope:followups:create', 'throttle:20,1']);
+            ->middleware(['api.scope:followups:create', 'throttle:mcp-write']);
         Route::patch('follow-ups/{id}', [FollowUpController::class, 'update'])
-            ->middleware(['api.scope:followups:update', 'throttle:20,1']);
+            ->middleware(['api.scope:followups:update', 'throttle:mcp-write']);
         Route::delete('follow-ups/{id}', [FollowUpController::class, 'destroy'])
             ->middleware('api.scope:followups:delete');
         // Manual immediate send of a pending follow-up.
         Route::post('follow-ups/{id}/send', [FollowUpController::class, 'send'])
-            ->middleware(['api.scope:email:send', 'throttle:10,1']);
+            ->middleware(['api.scope:email:send', 'throttle:mcp-send']);
 
         // Scheduler status (due counts, next run times, recent failures).
         Route::get('scheduler/status', [SchedulerStatusController::class, 'show'])
@@ -178,9 +178,9 @@ Route::prefix('gpt/v1')
 
         // Bulk ingestion endpoints (n8n / scrapers)
         Route::post('ingestion/opportunities', [IngestionController::class, 'opportunities'])
-            ->middleware(['api.scope:opportunities:write', 'throttle:10,1']);
+            ->middleware(['api.scope:opportunities:write', 'throttle:mcp-write']);
         Route::post('ingestion/contacts', [IngestionController::class, 'contacts'])
-            ->middleware(['api.scope:contacts:write', 'throttle:10,1']);
+            ->middleware(['api.scope:contacts:write', 'throttle:mcp-write']);
 
         // ---------------------------------------------------------------------------
         // Documents  – CRUD + versioning + entity links
@@ -190,14 +190,14 @@ Route::prefix('gpt/v1')
         Route::get('documents', [DocumentController::class, 'index'])
             ->middleware('api.scope:documents:read');
         Route::post('documents', [DocumentController::class, 'store'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         // Dedicated file-upload alias — separate path so ChatGPT uses multipart unambiguously
         Route::post('documents/upload', [DocumentController::class, 'store'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         Route::get('documents/{id}', [DocumentController::class, 'show'])
             ->middleware('api.scope:documents:read');
         Route::patch('documents/{id}', [DocumentController::class, 'update'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         Route::delete('documents/{id}', [DocumentController::class, 'destroy'])
             ->middleware('api.scope:documents:write');
 
@@ -209,7 +209,7 @@ Route::prefix('gpt/v1')
         Route::get('documents/{id}/versions', [DocumentController::class, 'listVersions'])
             ->middleware('api.scope:documents:read');
         Route::post('documents/{id}/versions', [DocumentController::class, 'addVersion'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         Route::get('documents/{id}/versions/{vid}/download', [DocumentController::class, 'downloadVersion'])
             ->middleware('api.scope:documents:read');
 
@@ -217,7 +217,7 @@ Route::prefix('gpt/v1')
         Route::get('documents/{id}/links', [DocumentController::class, 'listLinks'])
             ->middleware('api.scope:documents:read');
         Route::post('documents/{id}/links', [DocumentController::class, 'addLink'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         Route::delete('documents/{id}/links/{linkId}', [DocumentController::class, 'removeLink'])
             ->middleware('api.scope:documents:write');
 
@@ -225,7 +225,7 @@ Route::prefix('gpt/v1')
         Route::get('opportunities/{id}/documents', [DocumentController::class, 'indexForOpportunity'])
             ->middleware('api.scope:documents:read');
         Route::post('opportunities/{id}/documents', [DocumentController::class, 'storeForOpportunity'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         Route::delete('opportunities/{id}/documents/{docId}', [DocumentController::class, 'detachFromOpportunity'])
             ->middleware('api.scope:documents:write');
 
@@ -233,7 +233,7 @@ Route::prefix('gpt/v1')
         Route::get('contacts/{id}/documents', [DocumentController::class, 'indexForContact'])
             ->middleware('api.scope:documents:read');
         Route::post('contacts/{id}/documents', [DocumentController::class, 'storeForContact'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         Route::delete('contacts/{id}/documents/{docId}', [DocumentController::class, 'detachFromContact'])
             ->middleware('api.scope:documents:write');
 
@@ -241,7 +241,7 @@ Route::prefix('gpt/v1')
         Route::get('email-drafts/{id}/documents', [DocumentController::class, 'indexForEmailDraft'])
             ->middleware('api.scope:documents:read');
         Route::post('email-drafts/{id}/documents', [DocumentController::class, 'storeForEmailDraft'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         Route::delete('email-drafts/{id}/documents/{docId}', [DocumentController::class, 'detachFromEmailDraft'])
             ->middleware('api.scope:documents:write');
 
@@ -249,7 +249,7 @@ Route::prefix('gpt/v1')
         Route::get('follow-ups/{id}/documents', [DocumentController::class, 'indexForFollowUp'])
             ->middleware('api.scope:documents:read');
         Route::post('follow-ups/{id}/documents', [DocumentController::class, 'storeForFollowUp'])
-            ->middleware(['api.scope:documents:write', 'throttle:20,1']);
+            ->middleware(['api.scope:documents:write', 'throttle:mcp-write']);
         Route::delete('follow-ups/{id}/documents/{docId}', [DocumentController::class, 'detachFromFollowUp'])
             ->middleware('api.scope:documents:write');
 
@@ -258,23 +258,23 @@ Route::prefix('gpt/v1')
         // Per-id partial success; each row scoped to the calling user.
         // ---------------------------------------------------------------------------
         Route::post('bulk', [BulkController::class, 'handle'])
-            ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
+            ->middleware(['api.scope:bulk:write', 'throttle:mcp-write']);
 
         // Bulk CREATE — up to 20 items per request (opportunities, contacts, drafts)
         Route::post('bulk/opportunities', [BulkCreateController::class, 'opportunities'])
-            ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
+            ->middleware(['api.scope:bulk:write', 'throttle:mcp-write']);
         Route::post('bulk/contacts', [BulkCreateController::class, 'contacts'])
-            ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
+            ->middleware(['api.scope:bulk:write', 'throttle:mcp-write']);
         Route::post('bulk/drafts', [BulkCreateController::class, 'drafts'])
-            ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
+            ->middleware(['api.scope:bulk:write', 'throttle:mcp-write']);
 
         // Outreach pipeline — orchestrates contact+opportunity+draft+followup+tags in one call
         Route::post('pipeline/execute', [OutreachPipelineController::class, 'execute'])
-            ->middleware(['api.scope:pipelines:execute', 'throttle:10,1']);
+            ->middleware(['api.scope:pipelines:execute', 'throttle:mcp-write']);
 
         // Confirmation requests (multi-step AI action gating)
         Route::post('confirmations', [ConfirmationController::class, 'store'])
-            ->middleware('throttle:10,1');
+            ->middleware('throttle:mcp-write');
         Route::get('confirmations/{id}', [ConfirmationController::class, 'show']);
     });
 

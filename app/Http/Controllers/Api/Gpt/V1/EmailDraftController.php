@@ -20,17 +20,45 @@ class EmailDraftController extends GptController
 {
     public function index(Request $request): JsonResponse
     {
+        $filters = $request->validate([
+            'opportunity_id' => 'nullable|integer',
+            'contact_id'     => 'nullable|integer',
+            'status'         => 'nullable|string|max:30',
+            'per_page'       => 'nullable|integer|min:1|max:100',
+            'page'           => 'nullable|integer|min:1',
+        ]);
+
         $user = $this->apiUser($request);
 
-        $drafts = EmailMessage::where('user_id', $user->id)
-            ->where('status', 'draft')
+        $query = EmailMessage::where('user_id', $user->id)
             ->where('direction', 'outbound')
-            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion'])
-            ->orderByDesc('created_at')
-            ->limit(50)
+            // Default to draft-only unless an explicit status filter is given.
+            ->where('status', $filters['status'] ?? 'draft')
+            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
+
+        if (! empty($filters['opportunity_id'])) {
+            $query->where('opportunity_id', $filters['opportunity_id']);
+        }
+
+        if (! empty($filters['contact_id'])) {
+            $query->where('contact_id', $filters['contact_id']);
+        }
+
+        $perPage = (int) ($filters['per_page'] ?? 50);
+        $page    = (int) ($filters['page'] ?? 1);
+        $total   = (clone $query)->count();
+
+        $drafts = $query->orderByDesc('created_at')
+            ->forPage($page, $perPage)
             ->get();
 
-        return $this->listResponse($drafts->map(fn ($d) => $this->format($d))->values(), 50);
+        return $this->listResponse(
+            $drafts->map(fn ($d) => $this->format($d))->values(),
+            $perPage,
+            $total,
+            [],
+            $page
+        );
     }
 
     public function store(Request $request): JsonResponse

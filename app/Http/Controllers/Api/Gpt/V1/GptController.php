@@ -197,6 +197,7 @@ abstract class GptController extends Controller
         int $perPage,
         ?int $total = null,
         array $extra = [],
+        ?int $currentPage = null,
     ): JsonResponse {
         $rows  = $data instanceof \Illuminate\Support\Collection ? $data->values()->all() : array_values($data);
         $count = count($rows);
@@ -207,7 +208,7 @@ abstract class GptController extends Controller
             'data'  => $rows,
             'count' => $count,
             'meta'  => [
-                'current_page' => 1,
+                'current_page' => $currentPage ?? 1,
                 'per_page'     => $per,
                 'total'        => $total,
                 'last_page'    => (int) max(1, (int) ceil($total / $per)),
