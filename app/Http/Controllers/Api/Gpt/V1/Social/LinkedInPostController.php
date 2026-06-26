@@ -10,6 +10,7 @@ use App\Models\SocialPost;
 use App\Models\SocialPostConfirmation;
 use App\Models\SocialPostTarget;
 use App\Services\Social\LinkedInPostsService;
+use App\Services\Social\SocialPostSchedulerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -17,7 +18,10 @@ use Illuminate\Validation\Rule;
 
 class LinkedInPostController extends GptController
 {
-    public function __construct(private LinkedInPostsService $postsSvc) {}
+    public function __construct(
+        private LinkedInPostsService $postsSvc,
+        private SocialPostSchedulerService $scheduler,
+    ) {}
 
     // ── Draft CRUD ────────────────────────────────────────────────────────────
 
@@ -366,10 +370,18 @@ class LinkedInPostController extends GptController
         $post->approval_status = 'approved';
 
         if ($data['action'] === 'publish_now') {
-            $post->status = 'publishing';
-            $post->save();
+            $target = $this->scheduler->ensureLinkedInTarget($post, $user->id);
+            if (! $target) {
+                return response()->json([
+                    'error' => 'No connected LinkedIn account found to publish against.',
+                    'code'  => 'NO_TARGET',
+                ], 422);
+            }
 
-            PublishLinkedInPostJob::dispatch($post);
+            $post->update(['approval_status' => 'approved', 'status' => 'publishing']);
+            $target->update(['status' => 'publishing']);
+
+            PublishLinkedInPostJob::dispatch($target->id, $user->id);
 
             SocialAuditEvent::log(
                 $user->id, 'linkedin_post_publish_queued', 'success',
@@ -390,9 +402,16 @@ class LinkedInPostController extends GptController
         $timezone    = $data['timezone'] ?? 'UTC';
         $scheduledAt = \Carbon\Carbon::parse($data['scheduled_at'], $timezone)->utc();
 
-        $post->scheduled_at = $scheduledAt;
-        $post->status       = 'scheduled';
-        $post->save();
+        $target = $this->scheduler->ensureLinkedInTarget($post, $user->id);
+        if (! $target) {
+            return response()->json([
+                'error' => 'No connected LinkedIn account found to schedule against.',
+                'code'  => 'NO_TARGET',
+            ], 422);
+        }
+
+        $post->timezone_display = $timezone;
+        $this->scheduler->applyApproval($post, $user->id, $scheduledAt, $timezone);
 
         SocialAuditEvent::log(
             $user->id, 'linkedin_post_scheduled', 'success',
