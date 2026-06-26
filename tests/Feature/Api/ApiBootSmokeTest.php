@@ -65,7 +65,7 @@ class ApiBootSmokeTest extends TestCase
         $client = ApiClient::create([
             'user_id'     => $user->id,
             'name'        => 'Test Client',
-            'source_type' => 'gpt',
+            'source_type' => 'custom_gpt',
             'scopes'      => $scopes,
             'is_active'   => true,
         ]);
