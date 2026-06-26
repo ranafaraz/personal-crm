@@ -15,6 +15,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -69,6 +70,10 @@ class DocumentController extends GptController
 
         if ($request->filled('file_base64')) {
             return $this->createFromBase64($request);
+        }
+
+        if ($request->filled('source_url')) {
+            return $this->createFromRemoteFetch($request);
         }
 
         return $this->createFromUrl($request);
@@ -397,6 +402,129 @@ class DocumentController extends GptController
     // =========================================================================
     // Private — document creation
     // =========================================================================
+
+    /**
+     * Server-side fetch: the agent passes a URL; the CRM downloads and stores
+     * the bytes as a real versioned file (upload_source = 'remote_fetch').
+     * Best for files >1 MB or already hosted (GitHub Pages, S3 public, etc.).
+     */
+    private function createFromRemoteFetch(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'source_url'     => 'required|url|max:2048',
+            'name'           => 'required|string|max:500',
+            'document_type'  => ['nullable', Rule::in(ApiDocument::DOCUMENT_TYPES)],
+            'description'    => 'nullable|string|max:2000',
+            'version_notes'  => 'nullable|string|max:2000',
+            'opportunity_id' => 'nullable|integer',
+            'contact_id'     => 'nullable|integer',
+            'email_draft_id' => 'nullable|integer',
+            'follow_up_id'   => 'nullable|integer',
+        ]);
+
+        $urlError = ApiAttachment::validateUrl($data['source_url']);
+        if ($urlError) {
+            return response()->json(['error' => $urlError, 'field' => 'source_url'], 422);
+        }
+
+        try {
+            $response = Http::timeout(30)->get($data['source_url']);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => 'Could not reach source_url: ' . $e->getMessage(),
+                'field' => 'source_url',
+            ], 422);
+        }
+
+        if (! $response->successful()) {
+            return response()->json([
+                'error' => "source_url returned HTTP {$response->status()}.",
+                'field' => 'source_url',
+            ], 422);
+        }
+
+        $contents = $response->body();
+        $size     = strlen($contents);
+
+        if ($size === 0) {
+            return response()->json(['error' => 'Remote file is empty.', 'field' => 'source_url'], 422);
+        }
+        if ($size > self::MAX_SIZE_BYTES) {
+            return response()->json([
+                'error' => sprintf('Remote file (%d bytes) exceeds the 20 MB limit.', $size),
+                'field' => 'source_url',
+            ], 422);
+        }
+
+        $urlFilename = basename(parse_url($data['source_url'], PHP_URL_PATH)) ?: $data['name'];
+        $extension   = strtolower(pathinfo($urlFilename, PATHINFO_EXTENSION));
+
+        if (! in_array($extension, explode(',', self::ALLOWED_EXTENSIONS), true)) {
+            return response()->json([
+                'error' => "Unsupported file extension: .{$extension}",
+                'field' => 'source_url',
+            ], 422);
+        }
+
+        $user   = $this->apiUser($request);
+        $client = $this->apiClient($request);
+        $dtype  = $data['document_type'] ?? 'other';
+
+        $entityLinks = $this->collectEntityLinks($request, $user);
+        if ($entityLinks instanceof JsonResponse) return $entityLinks;
+
+        $warnings    = ApiDocumentVersion::detectSensitiveWarnings($urlFilename, $dtype);
+        $isSensitive = count($warnings) > 0;
+
+        $doc = ApiDocument::create([
+            'tenant_id'          => $user->tenant_id,
+            'user_id'            => $user->id,
+            'name'               => $data['name'],
+            'document_type'      => $dtype,
+            'description'        => $data['description'] ?? null,
+            'is_sensitive'       => $isSensitive,
+            'sensitive_warnings' => $isSensitive ? $warnings : null,
+        ]);
+
+        try {
+            $safe = $this->sanitizeFilename($urlFilename);
+            $path = "private/api-documents/{$doc->id}/v1/{$safe}";
+
+            if (! Storage::disk('local')->put($path, $contents)) {
+                $doc->forceDelete();
+                return response()->json(['error' => 'Failed to store fetched file.'], 500);
+            }
+
+            $version = ApiDocumentVersion::create([
+                'api_document_id'           => $doc->id,
+                'version_number'            => 1,
+                'original_filename'         => $urlFilename,
+                'mime_type'                 => $this->detectMimeType($contents, $extension),
+                'size_bytes'                => $size,
+                'checksum'                  => hash('sha256', $contents),
+                'storage_path'              => $path,
+                'upload_source'             => 'remote_fetch',
+                'version_notes'             => $data['version_notes'] ?? null,
+                'uploaded_by_api_client_id' => $client->id,
+            ]);
+
+            $doc->update(['current_version_id' => $version->id]);
+        } catch (\Throwable $e) {
+            Storage::disk('local')->deleteDirectory("private/api-documents/{$doc->id}");
+            $doc->forceDelete();
+            throw $e;
+        }
+
+        $this->saveEntityLinks($doc, $entityLinks, $client);
+
+        $this->audit($request, 'create_document', 'api_document', $doc->id, 'low',
+            "name={$doc->name},source=remote_fetch", "id={$doc->id},v={$version->id}");
+
+        $doc->load(['currentVersion', 'links']);
+        $doc->loadCount('versions');
+
+        return $this->documentCreatedResponse($doc, $warnings);
+    }
 
     private function createFromUpload(Request $request): JsonResponse
     {
@@ -773,6 +901,9 @@ class DocumentController extends GptController
             'upload_source'     => $v->upload_source,
             'has_local_file'    => !empty($v->storage_path),
             'public_url'        => $v->public_url,
+            'download_url'      => $v->storage_path
+                ? url("/api/gpt/v1/documents/{$v->api_document_id}/download")
+                : $v->public_url,
             'version_notes'     => $v->version_notes,
             'created_at'        => $v->created_at?->toISOString(),
         ];

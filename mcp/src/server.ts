@@ -243,6 +243,15 @@ export function createCrmServer(): Server {
         },
       },
       {
+        name: 'crm_download_document',
+        description: 'Get download info for a document. Returns current_version.download_url — a direct API link for locally-stored files (pass X-Api-Key header), or the public_url for externally-hosted files. Use crm_get_document first to check has_local_file.',
+        inputSchema: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'number', description: 'Document ID' } },
+        },
+      },
+      {
         name: 'crm_get_email_draft_preview',
         description: 'Get a rendered HTML preview of an email draft, with signature and template applied.',
         inputSchema: {
@@ -746,15 +755,16 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_upload_document',
-        description: 'Upload a document from raw bytes (base64). The CRM hosts it and returns a public_url. Max 20 MB. Allowed: pdf, doc(x), xls(x), ppt(x), txt, csv, jpg, png, gif, webp.',
+        description: 'Attach a file to a CRM record. Prefer source_url (server downloads it — best for large or already-hosted files) over file_base64 (small files only, <5 MB). Pass opportunity_id (or contact/email_draft/follow_up id) to attach it so it appears on the record\'s Documents tab. Allowed types: pdf, doc(x), xls(x), ppt(x), txt, csv, jpg, png, gif, webp — max 20 MB.',
         inputSchema: {
           type: 'object',
-          required: ['name', 'filename', 'file_base64'],
+          required: ['name'],
           properties: {
             name:            { type: 'string', description: 'Display name (max 500)' },
-            filename:        { type: 'string', description: 'Original filename incl. extension (max 255)' },
-            file_base64:     { type: 'string', description: 'Base64-encoded file contents' },
-            document_type:   { type: 'string', enum: ['invoice', 'contract', 'agreement', 'statement_of_work', 'proposal', 'other'] },
+            source_url:      { type: 'string', description: 'Server downloads this URL and stores the bytes as a real file. Best for large or already-hosted files. Mutually exclusive with file_base64.' },
+            file_base64:     { type: 'string', description: 'Base64-encoded file bytes. Use for small files (<5 MB). Requires filename. Mutually exclusive with source_url.' },
+            filename:        { type: 'string', description: 'Original filename incl. extension (max 255). Required when using file_base64.' },
+            document_type:   { type: 'string', enum: ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'contract', 'report', 'other'] },
             description:     { type: 'string' },
             opportunity_id:  { type: 'number' },
             contact_id:      { type: 'number' },
@@ -951,6 +961,10 @@ export function createCrmServer(): Server {
         }
 
         case 'crm_get_document':
+          result = await crm.get(`/documents/${a.id}`);
+          break;
+
+        case 'crm_download_document':
           result = await crm.get(`/documents/${a.id}`);
           break;
 
