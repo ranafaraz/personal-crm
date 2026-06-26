@@ -549,6 +549,19 @@ export function createCrmServer(): Server {
           },
         },
       },
+      {
+        name: 'crm_cancel_followup',
+        description: 'Cancel a pending follow-up. Use this when a reply has been received or the follow-up is no longer needed. Returns 422 if the follow-up is not in pending status.',
+        inputSchema: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id:              { type: 'number', description: 'Follow-up ID to cancel' },
+            cancel_reason:   { type: 'string', description: 'Reason for cancellation (default: "manual")' },
+            idempotency_key: { type: 'string' },
+          },
+        },
+      },
 
       // -------------------------------------------------------------------
       // Writes — documents, attachments, proposals
@@ -838,6 +851,10 @@ export function createCrmServer(): Server {
           result = await crm.patch(`/follow-ups/${a.id}`, fields, idem);
           break;
         }
+
+        case 'crm_cancel_followup':
+          result = await crm.post(`/follow-ups/${a.id}/cancel`, payload, idem);
+          break;
 
         // -------------------------------------------------------------------
         // Writes — documents, attachments, proposals (new)

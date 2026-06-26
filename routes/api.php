@@ -167,6 +167,9 @@ Route::prefix('gpt/v1')
         // Manual immediate send of a pending follow-up.
         Route::post('follow-ups/{id}/send', [FollowUpController::class, 'send'])
             ->middleware(['api.scope:email:send', 'throttle:mcp-send']);
+        // Explicitly cancel a pending follow-up.
+        Route::post('follow-ups/{id}/cancel', [FollowUpController::class, 'cancel'])
+            ->middleware(['api.scope:followups:update', 'throttle:mcp-write']);
 
         // Scheduler status (due counts, next run times, recent failures).
         Route::get('scheduler/status', [SchedulerStatusController::class, 'show'])

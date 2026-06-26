@@ -258,6 +258,35 @@ class FollowUpController extends GptController
         return response()->json(['deleted' => true, 'id' => $id]);
     }
 
+    public function cancel(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'cancel_reason' => 'nullable|string|max:255',
+        ]);
+
+        $user     = $this->apiUser($request);
+        $followUp = FollowUp::where('user_id', $user->id)->findOrFail($id);
+
+        if ($followUp->status !== 'pending') {
+            return response()->json([
+                'error'          => 'Only a pending follow-up can be cancelled.',
+                'current_status' => $followUp->status,
+            ], 422);
+        }
+
+        $followUp->update([
+            'status'        => 'cancelled',
+            'cancel_reason' => $data['cancel_reason'] ?? 'manual',
+        ]);
+
+        $this->audit($request, 'cancel_followup', 'follow_up', $followUp->id, 'low',
+            "id={$id}, reason=" . ($data['cancel_reason'] ?? 'manual'));
+
+        $followUp->load(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
+
+        return response()->json(['data' => $this->format($followUp)]);
+    }
+
     public function format(FollowUp $f): array
     {
         $attachments   = $f->relationLoaded('apiAttachments') ? $f->apiAttachments : collect();

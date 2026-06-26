@@ -31,6 +31,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'tracking_types',
         'is_active',
         'last_login_at',
+        'auto_cancel_followups_on_reply',
     ];
 
     protected $hidden = [
@@ -45,7 +46,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'last_login_at'     => 'datetime',
             'password'          => 'hashed',
             'is_active'         => 'boolean',
-            'tracking_types'    => 'array',
+            'tracking_types'                   => 'array',
+            'auto_cancel_followups_on_reply'   => 'boolean',
         ];
     }
 

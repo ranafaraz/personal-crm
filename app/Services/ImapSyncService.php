@@ -10,6 +10,7 @@ use App\Models\FollowUp;
 use App\Models\InboxAttachment;
 use App\Models\InboxMessage;
 use App\Models\SuppressionList;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -159,6 +160,12 @@ class ImapSyncService
             return;
         }
 
+        // Respect the user's auto_cancel_followups_on_reply preference (default true).
+        $user = User::find($reply->user_id);
+        if ($user && ! $user->auto_cancel_followups_on_reply) {
+            return;
+        }
+
         if ($reply->matched_outbound_id) {
             FollowUp::query()
                 ->where('status', 'pending')
@@ -183,6 +190,31 @@ class ImapSyncService
             'status'        => 'cancelled',
             'cancel_reason' => 'reply_received',
         ]);
+
+        // Unschedule any outbound drafts (status=scheduled) linked to the same
+        // contact or opportunity — a reply makes them obsolete.
+        if ($reply->matched_contact_id || $reply->matched_opportunity_id) {
+            $draftQuery = EmailMessage::query()
+                ->where('user_id', $reply->user_id)
+                ->where('status', 'scheduled')
+                ->where('direction', 'outbound');
+
+            if ($reply->matched_opportunity_id && $reply->matched_contact_id) {
+                $draftQuery->where(function ($q) use ($reply) {
+                    $q->where('opportunity_id', $reply->matched_opportunity_id)
+                      ->orWhere('contact_id', $reply->matched_contact_id);
+                });
+            } elseif ($reply->matched_opportunity_id) {
+                $draftQuery->where('opportunity_id', $reply->matched_opportunity_id);
+            } else {
+                $draftQuery->where('contact_id', $reply->matched_contact_id);
+            }
+
+            $draftQuery->update([
+                'status'       => 'draft',
+                'scheduled_at' => null,
+            ]);
+        }
     }
 
     // -------------------------------------------------------------------------
