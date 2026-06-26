@@ -18,6 +18,7 @@ class Proposal extends Model
         'contact_id',
         'opportunity_id',
         'title',
+        'version',
         'status',
         'amount',
         'currency',

@@ -50,6 +50,7 @@ class ProposalController extends GptController
     {
         $data = $request->validate([
             'title'          => 'required|string|max:500',
+            'version'        => 'nullable|string|max:100',
             'contact_id'     => 'nullable|integer',
             'opportunity_id' => 'nullable|integer',
             'status'         => 'nullable|in:' . implode(',', self::STATUSES),
@@ -73,6 +74,7 @@ class ProposalController extends GptController
             'contact_id'     => $contact?->id,
             'opportunity_id' => $opportunity?->id,
             'title'          => $data['title'],
+            'version'        => $data['version'] ?? null,
             'status'         => $data['status'] ?? 'draft',
             'amount'         => $data['amount'] ?? null,
             'currency'       => strtoupper($data['currency'] ?? 'USD'),
@@ -104,6 +106,7 @@ class ProposalController extends GptController
     {
         $data = $request->validate([
             'title'          => 'sometimes|string|max:500',
+            'version'        => 'sometimes|nullable|string|max:100',
             'contact_id'     => 'sometimes|nullable|integer',
             'opportunity_id' => 'sometimes|nullable|integer',
             'status'         => 'sometimes|in:' . implode(',', self::STATUSES),
@@ -127,7 +130,7 @@ class ProposalController extends GptController
         if (array_key_exists('currency', $data)) {
             $proposal->currency = strtoupper($data['currency']);
         }
-        foreach (['title', 'status', 'amount', 'body', 'url', 'valid_until', 'meta'] as $field) {
+        foreach (['title', 'version', 'status', 'amount', 'body', 'url', 'valid_until', 'meta'] as $field) {
             if (array_key_exists($field, $data)) {
                 $proposal->{$field} = $data[$field];
             }
@@ -209,6 +212,7 @@ class ProposalController extends GptController
         return [
             'id'             => $p->id,
             'title'          => $p->title,
+            'version'        => $p->version,
             'status'         => $p->status,
             'amount'         => $p->amount,
             'currency'       => $p->currency,

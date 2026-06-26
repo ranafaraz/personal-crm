@@ -813,6 +813,7 @@ export function createCrmServer(): Server {
           required: ['title'],
           properties: {
             title:           { type: 'string', description: 'Proposal title (max 500)' },
+            version:         { type: 'string', description: 'Proposal version label, e.g. "v1", "v2.1" (max 100)' },
             opportunity_id:  { type: 'number' },
             contact_id:      { type: 'number' },
             url:             { type: 'string', description: 'Public URL of the proposal (max 2000)' },
