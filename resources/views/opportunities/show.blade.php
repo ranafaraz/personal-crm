@@ -204,6 +204,8 @@
                         </div>
                         @if($ver?->public_url)
                             <a href="{{ $ver->public_url }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 hover:underline">View</a>
+                        @elseif($ver?->storage_path)
+                            <a href="{{ route('documents.api.view', $doc->id) }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 hover:underline">View</a>
                         @else
                             <span class="text-xs text-slate-400">Stored</span>
                         @endif
@@ -216,7 +218,10 @@
                             <p class="text-sm font-medium text-slate-800">{{ $doc->name }}</p>
                             <p class="text-xs text-slate-500">{{ ucfirst($doc->document_type) }} &bull; {{ $doc->human_file_size }}</p>
                         </div>
-                        <a href="{{ route('documents.download', $doc) }}" class="text-xs text-indigo-600 hover:underline">Download</a>
+                        <div class="flex items-center gap-3">
+                            <a href="{{ route('documents.view', $doc) }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 hover:underline">View</a>
+                            <a href="{{ route('documents.download', $doc) }}" class="text-xs text-slate-500 hover:underline">Download</a>
+                        </div>
                     </div>
                     @endforeach
                 </div>

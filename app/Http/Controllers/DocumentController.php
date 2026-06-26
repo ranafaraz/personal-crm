@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDocumentRequest;
+use App\Models\ApiDocument;
 use App\Models\Document;
 use App\Models\Opportunity;
 use Illuminate\Http\RedirectResponse;
@@ -100,6 +101,34 @@ class DocumentController extends Controller
         abort_unless(Storage::disk('local')->exists($document->file_path), 404);
 
         return Storage::disk('local')->download($document->file_path, $document->file_name);
+    }
+
+    public function view(Request $request, int $id): StreamedResponse
+    {
+        $document = $this->tenantQuery(Document::class)->findOrFail($id);
+
+        $this->authorize('view', $document);
+
+        abort_unless(Storage::disk('local')->exists($document->file_path), 404);
+
+        return Storage::disk('local')->response($document->file_path, $document->file_name, [
+            'Content-Type' => $document->mime_type,
+        ]);
+    }
+
+    public function viewApiDoc(Request $request, int $id): StreamedResponse
+    {
+        $doc = $this->tenantQuery(ApiDocument::class)
+            ->with('currentVersion')
+            ->findOrFail($id);
+
+        $ver = $doc->currentVersion;
+
+        abort_unless($ver && $ver->storage_path && Storage::disk('local')->exists($ver->storage_path), 404);
+
+        return Storage::disk('local')->response($ver->storage_path, $ver->original_filename, [
+            'Content-Type' => $ver->mime_type,
+        ]);
     }
 
     public function destroy(Request $request, int $id): RedirectResponse

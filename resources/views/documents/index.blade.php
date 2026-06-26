@@ -55,7 +55,8 @@
                         </td>
                         <td class="px-4 py-3 text-slate-400 text-xs">{{ $doc->created_at->format('M j, Y') }}</td>
                         <td class="px-4 py-3 text-right flex items-center justify-end gap-1">
-                            <a href="{{ route('documents.download', $doc) }}" class="text-xs text-indigo-600 hover:underline px-2 py-1 rounded hover:bg-slate-100">Download</a>
+                            <a href="{{ route('documents.view', $doc) }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 hover:underline px-2 py-1 rounded hover:bg-slate-100">View</a>
+                            <a href="{{ route('documents.download', $doc) }}" class="text-xs text-slate-500 hover:underline px-2 py-1 rounded hover:bg-slate-100">Download</a>
                             <form method="POST" action="{{ route('documents.destroy', $doc) }}" onsubmit="return confirm('Delete this document?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">Delete</button>

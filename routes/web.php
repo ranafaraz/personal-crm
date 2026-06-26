@@ -155,6 +155,10 @@ Route::middleware(['auth', 'tenant_active'])->group(function () {
     Route::resource('documents', DocumentController::class)->whereNumber('document');
     Route::get('documents/{id}/download', [DocumentController::class, 'download'])
         ->name('documents.download');
+    Route::get('documents/{id}/view', [DocumentController::class, 'view'])
+        ->name('documents.view');
+    Route::get('documents/api/{id}/view', [DocumentController::class, 'viewApiDoc'])
+        ->name('documents.api.view');
 
     // ---------------------------------------------------------------------------
     // Email Templates
