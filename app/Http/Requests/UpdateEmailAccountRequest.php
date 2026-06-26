@@ -33,7 +33,7 @@ class UpdateEmailAccountRequest extends FormRequest
             'min_delay_seconds' => 'nullable|integer|min:0|max:3600',
             'is_active'         => 'boolean',
             'is_default'        => 'boolean',
-            'notes'             => 'nullable|string|max:5000',
+            'notes'             => 'nullable|string|max:65000',
         ];
     }
 }

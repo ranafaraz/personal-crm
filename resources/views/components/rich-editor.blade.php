@@ -13,9 +13,11 @@
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <style>
-    .js-rich-editor .ql-toolbar.ql-snow { border: none; border-bottom: 1px solid #e2e8f0; }
+    .js-rich-editor .ql-toolbar.ql-snow { border: none; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 1; background: #fff; }
     .js-rich-editor .ql-container.ql-snow { border: none; font-size: .875rem; }
-    .js-rich-editor .ql-editor { min-height: 150px; }
+    /* Cap the editor height so long content scrolls inside the box instead of
+       growing the page and pushing the form's Save button below the fold. */
+    .js-rich-editor .ql-editor { min-height: 150px; max-height: 360px; overflow-y: auto; }
     .js-rich-editor .ql-editor.ql-blank::before { font-style: normal; color: #94a3b8; }
 </style>
 @endpush
@@ -77,7 +79,11 @@
 
         var initial = textarea.value || '';
         if (initial.trim()) {
-            quill.clipboard.dangerouslyPasteHTML(initial);
+            try {
+                quill.clipboard.dangerouslyPasteHTML(initial);
+            } catch (e) {
+                console.error('Quill paste failed:', e);
+            }
         }
         holder.__quill = quill;
 

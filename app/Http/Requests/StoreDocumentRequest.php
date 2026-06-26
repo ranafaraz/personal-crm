@@ -16,7 +16,7 @@ class StoreDocumentRequest extends FormRequest
         return [
             'file'            => 'required|file|max:20480', // 20 MB
             'name'            => 'required|string|max:255',
-            'description'     => 'nullable|string|max:5000',
+            'description'     => 'nullable|string|max:65000',
             'document_type'   => 'nullable|string|max:100',
             'opportunity_id'  => 'nullable|integer|exists:opportunities,id',
             'contact_id'      => 'nullable|integer|exists:contacts,id',

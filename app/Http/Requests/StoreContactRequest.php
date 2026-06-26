@@ -31,7 +31,7 @@ class StoreContactRequest extends FormRequest
             'website'       => 'nullable|url|max:500',
             'country'       => 'nullable|string|max:100',
             'city'          => 'nullable|string|max:100',
-            'notes'         => 'nullable|string|max:10000',
+            'notes'         => 'nullable|string|max:65000',
             'status'        => 'nullable|in:active,inactive,suppressed',
             'source'        => 'nullable|string|max:100',
             'tags'           => 'nullable|array',
