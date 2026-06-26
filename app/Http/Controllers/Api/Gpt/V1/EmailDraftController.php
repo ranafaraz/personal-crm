@@ -71,9 +71,10 @@ class EmailDraftController extends GptController
             'draft_type'      => ['nullable', Rule::in(['initial_outreach', 'follow_up', 'thank_you', 'general'])],
             'tone'            => ['nullable', Rule::in(['professional', 'casual', 'formal'])],
             'requires_review' => 'nullable|boolean',
-            'signature_id'    => 'nullable|integer',
-            'attachment_ids'  => 'nullable|array|max:10',
-            'attachment_ids.*'=> 'integer',
+            'signature_id'        => 'nullable|integer',
+            'suppress_signature'  => 'nullable|boolean',
+            'attachment_ids'      => 'nullable|array|max:10',
+            'attachment_ids.*'    => 'integer',
         ]);
 
         $user    = $this->apiUser($request);
@@ -124,13 +125,15 @@ class EmailDraftController extends GptController
             $opportunity = Opportunity::where('user_id', $user->id)->findOrFail($data['opportunity_id']);
         }
 
-        // Resolve signature: explicit id → user default → none (Bug 3)
+        // Resolve signature: suppress_signature=true → none; explicit id → that sig; default → user default (Bug 3)
         $signature         = null;
         $renderedSignature = null;
-        if (! empty($data['signature_id'])) {
-            $signature = EmailSignature::where('user_id', $user->id)->findOrFail($data['signature_id']);
-        } else {
-            $signature = EmailSignature::where('user_id', $user->id)->where('is_default', true)->first();
+        if (! ($data['suppress_signature'] ?? false)) {
+            if (! empty($data['signature_id'])) {
+                $signature = EmailSignature::where('user_id', $user->id)->findOrFail($data['signature_id']);
+            } else {
+                $signature = EmailSignature::where('user_id', $user->id)->where('is_default', true)->first();
+            }
         }
         if ($signature) {
             $renderedSignature = $signature->renderHtml();

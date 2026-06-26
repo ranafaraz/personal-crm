@@ -69,14 +69,15 @@ class LinkedInAccountController extends GptController
     private function formatAccount(SocialAccount $a): array
     {
         return [
-            'id'               => $a->id,
-            'display_name'     => $a->display_name,
+            'id'                 => $a->id,
+            'display_name'       => $a->display_name,
+            'author_member_urn'  => $a->provider_account_urn,
             'public_profile_url' => $a->public_profile_url,
-            'status'           => $a->status,
-            'is_default'       => (bool) $a->is_default,
-            'token_expires_at' => $a->token_expires_at?->toIso8601String(),
-            'capabilities'     => $a->capabilities ?? [],
-            'missing_scopes'   => $a->missing_scopes ?? [],
+            'status'             => $a->status,
+            'is_default'         => (bool) $a->is_default,
+            'token_expires_at'   => $a->token_expires_at?->utc()->toIso8601String(),
+            'capabilities'       => $a->capabilities ?? [],
+            'missing_scopes'     => $a->missing_scopes ?? [],
         ];
     }
 }

@@ -26,9 +26,13 @@ class LinkedInPostController extends GptController
         $user = $this->apiUser($request);
 
         $posts = SocialPost::where('user_id', $user->id)
-            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            ->when($request->status,         fn ($q, $s) => $q->where('status', $s))
+            ->when($request->created_after,  fn ($q, $d) => $q->where('created_at', '>=', $d))
+            ->when($request->created_before, fn ($q, $d) => $q->where('created_at', '<=', $d))
+            ->when($request->scheduled_after,  fn ($q, $d) => $q->where('scheduled_at', '>=', $d))
+            ->when($request->scheduled_before, fn ($q, $d) => $q->where('scheduled_at', '<=', $d))
             ->orderByDesc('updated_at')
-            ->limit(50)
+            ->limit(min((int) ($request->limit ?? 50), 100))
             ->get()
             ->map(fn ($p) => $this->formatPost($p));
 
@@ -64,6 +68,18 @@ class LinkedInPostController extends GptController
         ]);
 
         $isMcp = $this->apiClient($request)->source_type === 'mcp';
+
+        // Default author_member_urn to the default connected account's URN when omitted.
+        if (empty($data['author_member_urn'])) {
+            $defaultAccount = SocialAccount::where('user_id', $user->id)
+                ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
+                ->where('status', 'connected')
+                ->where('is_default', true)
+                ->first();
+            if ($defaultAccount?->provider_account_urn) {
+                $data['author_member_urn'] = $defaultAccount->provider_account_urn;
+            }
+        }
 
         $post = SocialPost::create(array_merge($data, [
             'user_id'         => $user->id,
@@ -434,18 +450,25 @@ class LinkedInPostController extends GptController
 
     private function formatPost(SocialPost $post, bool $detailed = false): array
     {
+        // Always serialize datetimes in UTC so the caller never sees local timezone offsets.
+        $scheduledUtc = $post->scheduled_at?->utc();
+
         $base = [
-            'id'              => $post->id,
-            'title_internal'  => $post->title_internal,
-            'post_type'       => $post->post_type,
-            'status'          => $post->status,
-            'approval_status' => $post->approval_status,
-            'content_version' => $post->content_version,
-            'scheduled_at'    => $post->scheduled_at?->toIso8601String(),
-            'linkedin_post_urn' => $post->linkedin_post_urn,
-            'linkedin_post_url' => $post->linkedin_post_url,
-            'created_at'      => $post->created_at->toIso8601String(),
-            'updated_at'      => $post->updated_at->toIso8601String(),
+            'id'                 => $post->id,
+            'title_internal'     => $post->title_internal,
+            'post_type'          => $post->post_type,
+            'status'             => $post->status,
+            'approval_status'    => $post->approval_status,
+            'content_version'    => $post->content_version,
+            'scheduled_at'       => $scheduledUtc?->toIso8601String(),
+            'scheduled_at_local' => $scheduledUtc && $post->timezone_display
+                ? $scheduledUtc->setTimezone($post->timezone_display)->toIso8601String()
+                : null,
+            'timezone'           => $post->timezone_display,
+            'linkedin_post_urn'  => $post->linkedin_post_urn,
+            'linkedin_post_url'  => $post->linkedin_post_url,
+            'created_at'         => $post->created_at->utc()->toIso8601String(),
+            'updated_at'         => $post->updated_at->utc()->toIso8601String(),
         ];
 
         if ($detailed) {
@@ -454,6 +477,16 @@ class LinkedInPostController extends GptController
             $base['hashtags']           = $post->hashtags();
             $base['article_url']        = $post->article_url;
             $base['author_member_urn']  = $post->author_member_urn;
+
+            // Include attached media so the agent can verify image without a browser (A6).
+            $base['media'] = $post->mediaAssets()->get()->map(fn ($a) => [
+                'asset_id'           => $a->id,
+                'filename'           => $a->filename,
+                'storage_url'        => $a->storageUrl(),
+                'is_featured'        => (bool) ($a->pivot->is_featured ?? false),
+                'alt_text'           => $a->pivot->alt_text_override ?: $a->alt_text,
+                'linkedin_media_urn' => $a->linkedin_media_urn,
+            ])->values()->all();
         }
 
         return $base;

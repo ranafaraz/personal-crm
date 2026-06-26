@@ -116,7 +116,8 @@ class LinkedInMediaController extends GptController
 
     /**
      * Upload an image to the CRM Media Library.
-     * Accepts either a multipart file or an image_url the server downloads.
+     * Accepts a multipart file, an image_url the server downloads, or raw
+     * base64 bytes (file_base64 + filename + optional mime_type).
      * Returns the asset_id for use with attachMediaToPost.
      */
     public function store(Request $request): JsonResponse
@@ -126,19 +127,39 @@ class LinkedInMediaController extends GptController
         $data = $request->validate([
             'file'          => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
             'image_url'     => 'nullable|url|max:2000',
+            'file_base64'   => 'nullable|string',
+            'filename'      => 'nullable|string|max:255',
+            'mime_type'     => 'nullable|string|max:100',
             'title'         => 'nullable|string|max:255',
             'alt_text'      => 'required|string|max:500',
             'rights_status' => ['nullable', Rule::in(['owned', 'licensed', 'generated', 'unknown'])],
             'auto_approve'  => 'nullable|boolean',
         ]);
 
-        if (! $request->hasFile('file') && empty($data['image_url'])) {
-            return response()->json(['error' => 'Provide either a file (multipart) or image_url.'], 422);
+        $hasFile   = $request->hasFile('file');
+        $hasUrl    = ! empty($data['image_url']);
+        $hasBase64 = ! empty($data['file_base64']);
+
+        if (! $hasFile && ! $hasUrl && ! $hasBase64) {
+            return response()->json(['error' => 'Provide one of: file (multipart), image_url, or file_base64 + filename.'], 422);
         }
 
-        if ($request->hasFile('file')) {
+        if ($hasFile) {
             [$storagePath, $displayName, $mime, $size, $hash] =
                 $this->storeUploadedFile($request->file('file'), $user->id, $data['title'] ?? null);
+        } elseif ($hasBase64) {
+            [$storagePath, $displayName, $mime, $size, $hash] =
+                $this->storeFromBase64(
+                    $data['file_base64'],
+                    $data['filename'] ?? 'image.png',
+                    $data['mime_type'] ?? null,
+                    $user->id,
+                    $data['title'] ?? null,
+                );
+
+            if ($storagePath === null) {
+                return response()->json(['error' => 'Invalid base64 data or unsupported image type. Allowed: jpg, jpeg, png, gif, webp. Max 8 MB decoded.'], 422);
+            }
         } else {
             [$storagePath, $displayName, $mime, $size, $hash] =
                 $this->downloadFromUrl($data['image_url'], $user->id, $data['title'] ?? null);
@@ -221,6 +242,53 @@ class LinkedInMediaController extends GptController
             'is_featured'            => (bool) ($a->pivot->is_featured ?? false),
             'alt_text'               => $a->pivot->alt_text_override ?: $a->alt_text,
         ];
+    }
+
+    private function storeFromBase64(string $b64, string $filename, ?string $hintMime, int $userId, ?string $title): array
+    {
+        $contents = base64_decode(preg_replace('/^data:[^;]+;base64,/', '', $b64), strict: true);
+        if ($contents === false || strlen($contents) === 0) {
+            return [null, null, null, null, null];
+        }
+
+        $maxBytes = 8 * 1024 * 1024; // 8 MB
+        if (strlen($contents) > $maxBytes) {
+            return [null, null, null, null, null];
+        }
+
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION)) ?: 'png';
+        $mime = $hintMime ?? match ($ext) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif'         => 'image/gif',
+            'webp'        => 'image/webp',
+            default       => 'image/png',
+        };
+
+        $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (! in_array($mime, $allowed, true)) {
+            return [null, null, null, null, null];
+        }
+
+        // Sniff magic bytes — reject anything that doesn't look like a real image.
+        $magic = substr($contents, 0, 4);
+        $isJpeg = str_starts_with($magic, "\xFF\xD8");
+        $isPng  = str_starts_with($magic, "\x89PNG");
+        $isGif  = str_starts_with($magic, 'GIF8');
+        $isWebp = substr($contents, 0, 12) === "RIFF" . pack('V', strlen($contents) - 8) . "WEBP"
+            || str_starts_with(substr($contents, 0, 12), 'RIFF')
+            && substr($contents, 8, 4) === 'WEBP';
+
+        if (! $isJpeg && ! $isPng && ! $isGif && ! $isWebp) {
+            return [null, null, null, null, null];
+        }
+
+        $slug        = Str::uuid() . '.' . $ext;
+        $storagePath = 'social-media/' . $userId . '/' . $slug;
+        Storage::disk('public')->put($storagePath, $contents);
+
+        $display = $title ?: $filename ?: $slug;
+
+        return [$storagePath, $display, $mime, strlen($contents), hash('sha256', $contents)];
     }
 
     private function storeUploadedFile(UploadedFile $file, int $userId, ?string $title): array

@@ -63,11 +63,17 @@ class ContactController extends GptController
             'email'        => 'nullable|email|max:255',
             'phone'        => 'nullable|string|max:50',
             'company'      => 'nullable|string|max:255',
+            'organization' => 'nullable|string|max:255', // alias for company (MCP clients use this)
             'job_title'    => 'nullable|string|max:255',
+            'title'        => 'nullable|string|max:255', // alias for job_title (MCP clients use this)
             'linkedin_url' => 'nullable|url|max:2048',
             'notes'        => 'nullable|string|max:5000',
             'status'       => ['nullable', Rule::in(['active', 'suppressed', 'bounced'])],
         ]);
+
+        // Resolve aliases — prefer explicit field, fall back to alias.
+        $company  = $data['company']   ?? $data['organization'] ?? null;
+        $jobTitle = $data['job_title'] ?? $data['title']        ?? null;
 
         $user = $this->apiUser($request);
 
@@ -86,9 +92,10 @@ class ContactController extends GptController
 
             if ($existing) {
                 return response()->json([
-                    'data'      => $this->format($existing),
-                    'duplicate' => true,
-                    'message'   => 'Existing contact returned. No duplicate created.',
+                    'data'        => $this->format($existing),
+                    'duplicate'   => true,
+                    'needs_email' => false,
+                    'message'     => 'Existing contact returned. No duplicate created.',
                 ], 200);
             }
         }
@@ -100,8 +107,8 @@ class ContactController extends GptController
             'last_name'    => $data['last_name'] ?? null,
             'email'        => isset($data['email']) ? strtolower($data['email']) : null,
             'phone'        => $data['phone'] ?? null,
-            'company'      => $data['company'] ?? null,
-            'job_title'    => $data['job_title'] ?? null,
+            'company'      => $company,
+            'job_title'    => $jobTitle,
             'linkedin_url' => $data['linkedin_url'] ?? null,
             'notes'        => $data['notes'] ?? null,
             'status'       => $data['status'] ?? 'active',
@@ -113,7 +120,14 @@ class ContactController extends GptController
             "id={$contact->id}",
         );
 
-        return response()->json(['data' => $this->format($contact), 'duplicate' => false], 201);
+        $needsEmail = empty($contact->email);
+
+        return response()->json([
+            'data'        => $this->format($contact),
+            'duplicate'   => false,
+            'needs_email' => $needsEmail,
+            'message'     => $needsEmail ? 'Contact created without email. Verify and add email before sending outreach.' : null,
+        ], 201);
     }
 
     public function addNote(Request $request, int $id): JsonResponse

@@ -114,17 +114,19 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_create_email_draft',
-        description: 'Create an email draft. For the MCP client the confirmation gate is bypassed, so the draft is auto-approved and ready to send immediately via crm_send_draft (it is still not sent until you call that). Creating a draft alone does not send anything.',
+        description: 'Create an email draft. MCP drafts are auto-approved and bypass the confirmation gate — nothing is sent until crm_send_draft is called. SIGNATURE: the saved default signature is auto-appended unless you pass suppress_signature=true or specify a signature_id. Do NOT include the signature text in the body — it doubles up. Use crm_list_signatures to see available signatures.',
         inputSchema: {
           type: 'object',
           required: ['contact_id', 'subject', 'body'],
           properties: {
-            contact_id:     { type: 'number' },
-            opportunity_id: { type: 'number' },
-            subject:        { type: 'string' },
-            body:           { type: 'string' },
-            draft_type:     { type: 'string', enum: ['initial_outreach', 'follow_up', 'thank_you', 'general'] },
-            tone:           { type: 'string', enum: ['professional', 'casual', 'formal'] },
+            contact_id:          { type: 'number' },
+            opportunity_id:      { type: 'number' },
+            subject:             { type: 'string' },
+            body:                { type: 'string' },
+            draft_type:          { type: 'string', enum: ['initial_outreach', 'follow_up', 'thank_you', 'general'] },
+            tone:                { type: 'string', enum: ['professional', 'casual', 'formal'] },
+            signature_id:        { type: 'number', description: 'Use a specific saved signature instead of the default' },
+            suppress_signature:  { type: 'boolean', description: 'Pass true to send without any signature appended' },
           },
         },
       },
@@ -146,14 +148,15 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_recent_replies',
-        description: 'Get recent inbound replies matched to outbound emails.',
+        description: 'Get recent inbound replies matched to outbound emails. Pass only_human=true to strip test/auto-ack noise (CRM-E2E subjects, noreply/mailer-daemon senders, internal domains) and return only genuine human replies.',
         inputSchema: {
           type: 'object',
           properties: {
-            since:          { type: 'string', description: 'ISO datetime' },
+            since:          { type: 'string', description: 'ISO datetime — only replies received after this' },
             opportunity_id: { type: 'number' },
             contact_id:     { type: 'number' },
             sentiment:      { type: 'string', enum: ['positive', 'neutral', 'negative'] },
+            only_human:     { type: 'boolean', description: 'Filter out test/auto-ack/no-reply noise; returns only genuine human replies' },
             limit:          { type: 'number' },
           },
         },
@@ -187,16 +190,18 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_create_contact',
-        description: 'Create a new contact in the CRM.',
+        description: 'Create a contact. email is optional — pass needs_email=true contacts to crm_update_contact once the real address is known before drafting. organization/title are accepted as aliases for company/job_title. Returns needs_email=true when the contact was saved without an email address.',
         inputSchema: {
           type: 'object',
           required: ['first_name', 'last_name'],
           properties: {
             first_name:   { type: 'string' },
             last_name:    { type: 'string' },
-            email:        { type: 'string' },
-            organization: { type: 'string' },
-            title:        { type: 'string' },
+            email:        { type: 'string', description: 'Optional — contact is created without email if omitted; needs_email=true in response' },
+            organization: { type: 'string', description: 'Company name (alias for company field)' },
+            company:      { type: 'string', description: 'Company name' },
+            title:        { type: 'string', description: 'Job title (alias for job_title field)' },
+            job_title:    { type: 'string', description: 'Job title' },
             phone:        { type: 'string' },
             linkedin_url: { type: 'string' },
             notes:        { type: 'string' },
@@ -398,7 +403,7 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_list_linkedin_accounts',
-        description: 'List the connected LinkedIn accounts (Social Studio). Use this to discover the author_member_urn / default account before creating or publishing a post.',
+        description: 'List connected LinkedIn accounts. Each account now returns author_member_urn (the urn:li:person:… needed for post creation) and token_expires_at. The default account\'s author_member_urn is automatically used when crm_create_linkedin_post omits author_member_urn.',
         inputSchema: { type: 'object', properties: {} },
       },
       {
@@ -423,17 +428,22 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_list_linkedin_posts',
-        description: 'List LinkedIn posts (Social Studio), most recently updated first. Optionally filter by status (draft, approved, scheduled, publishing, published, failed, cancelled).',
+        description: 'List LinkedIn posts (Social Studio), most recently updated first. Supports status, date-range, and limit filters. All datetimes returned in UTC.',
         inputSchema: {
           type: 'object',
           properties: {
-            status: { type: 'string', description: 'Optional status filter' },
+            status:           { type: 'string', description: 'draft | approved | scheduled | publishing | published | failed | cancelled' },
+            created_after:    { type: 'string', description: 'ISO datetime — only posts created after this instant' },
+            created_before:   { type: 'string', description: 'ISO datetime — only posts created before this instant' },
+            scheduled_after:  { type: 'string', description: 'ISO datetime — only posts scheduled after this instant' },
+            scheduled_before: { type: 'string', description: 'ISO datetime — only posts scheduled before this instant' },
+            limit:            { type: 'number', description: 'Max results (1-100, default 50)' },
           },
         },
       },
       {
         name: 'crm_get_linkedin_post',
-        description: 'Get a single LinkedIn post with full detail (body, hashtags, article_url, author_member_urn, provider URN/URL).',
+        description: 'Get a single LinkedIn post with full detail (body, first_comment_body, hashtags, article_url, author_member_urn, attached media with storage_url, provider URN/URL). All datetimes in UTC; scheduled_at_local provided when timezone is set.',
         inputSchema: {
           type: 'object',
           required: ['id'],
@@ -480,16 +490,19 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_upload_linkedin_media',
-        description: 'Add an image to the CRM media library from a public URL, returning an asset_id for use with crm_attach_linkedin_media. (The MCP path uses image_url; binary/base64 file upload is not supported here.)',
+        description: 'Add an image to the CRM media library, returning an asset_id for use with crm_attach_linkedin_media. Provide EITHER file_base64+filename (for locally-generated images — the preferred headless path) OR image_url (the server downloads it). file_base64 and image_url are mutually exclusive. Allowed types: jpg/png/gif/webp, max 8 MB decoded.',
         inputSchema: {
           type: 'object',
-          required: ['image_url', 'alt_text'],
+          required: ['alt_text'],
           properties: {
-            image_url:     { type: 'string', description: 'Public URL of the image the server will download (max 2000)' },
+            file_base64:   { type: 'string', description: 'Base64-encoded image bytes (with or without data-URI prefix). Mutually exclusive with image_url.' },
+            filename:      { type: 'string', description: 'Filename incl. extension, e.g. featured.png. Required when using file_base64.' },
+            mime_type:     { type: 'string', description: 'MIME type hint, e.g. image/png. Inferred from filename if omitted.' },
+            image_url:     { type: 'string', description: 'Public URL of the image the server will download (max 2000). Mutually exclusive with file_base64.' },
             alt_text:      { type: 'string', description: 'Accessibility alt text (required, max 500)' },
             title:         { type: 'string', description: 'Optional title (max 255)' },
-            rights_status: { type: 'string', enum: ['owned', 'licensed', 'generated', 'unknown'], description: 'Image rights status' },
-            auto_approve:  { type: 'boolean', description: 'Approve the asset immediately so it can be uploaded to LinkedIn' },
+            rights_status: { type: 'string', enum: ['owned', 'licensed', 'generated', 'unknown'], description: 'Image rights status (default: generated)' },
+            auto_approve:  { type: 'boolean', description: 'Approve the asset immediately (default true)' },
           },
         },
       },
@@ -801,6 +814,45 @@ export function createCrmServer(): Server {
           },
         },
       },
+
+      // -------------------------------------------------------------------
+      // New tools — headless completeness
+      // -------------------------------------------------------------------
+      {
+        name: 'crm_upload_email_attachment',
+        description: 'Upload a file as a sendable email attachment from base64 bytes or a public URL, returning an attachment_id for crm_link_attachment_to_draft. For the CV/resume use the public URL path (e.g. https://ranafaraz.github.io/Rana_Faraz_Ahmed_CV.pdf). Unlike crm_register_document, attachment_ids are ACTUALLY SENT with the email.',
+        inputSchema: {
+          type: 'object',
+          required: ['filename'],
+          properties: {
+            filename:        { type: 'string', description: 'Filename incl. extension, e.g. CV.pdf (max 255)' },
+            file_base64:     { type: 'string', description: 'Base64-encoded file bytes. Mutually exclusive with public_url.' },
+            public_url:      { type: 'string', description: 'Publicly reachable URL the server registers as-is. Mutually exclusive with file_base64.' },
+            mime_type:       { type: 'string', description: 'MIME type, e.g. application/pdf. Inferred from filename when omitted.' },
+            size_bytes:      { type: 'number', description: 'File size in bytes (required for public_url path, ignored for file_base64)' },
+            category:        { type: 'string', enum: ['invoice', 'contract', 'agreement', 'proposal', 'cover_letter', 'resume', 'tos', 'other'], description: 'Attachment category (default other)' },
+            notes:           { type: 'string' },
+            idempotency_key: { type: 'string' },
+          },
+        },
+      },
+      {
+        name: 'crm_whoami',
+        description: 'Return the authenticated token\'s user, client name, scopes, and token expiry. Use at the start of a session to verify capability and catch near-expiry tokens (warns when ≤ 30 days remaining).',
+        inputSchema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'crm_list_scheduled_sends',
+        description: 'List email drafts that are scheduled for future delivery (status=scheduled). Convenience wrapper for crm_list_drafts?status=scheduled. Use crm_unschedule_draft to cancel.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            contact_id:     { type: 'number', description: 'Filter to a specific contact' },
+            opportunity_id: { type: 'number', description: 'Filter to a specific opportunity' },
+            per_page:       { type: 'number', description: '1-100 (default 50)' },
+          },
+        },
+      },
     ],
   }));
 
@@ -1077,6 +1129,36 @@ export function createCrmServer(): Server {
         case 'crm_register_proposal':
           result = await crm.postProposals('/proposals', payload, idem);
           break;
+
+        // -------------------------------------------------------------------
+        // New headless-completeness tools
+        // -------------------------------------------------------------------
+        case 'crm_upload_email_attachment': {
+          const { idempotency_key: _ikey, filename, file_base64, public_url, mime_type, size_bytes, category, notes } = a as Record<string, unknown>;
+          if (file_base64) {
+            // Base64 upload — POST /attachments/upload
+            result = await crm.post('/attachments/upload', { file_base64, filename, mime_type, category, notes }, idem);
+          } else if (public_url) {
+            // URL registration — POST /attachments
+            result = await crm.post('/attachments', { filename, public_url, mime_type, size_bytes, category, notes }, idem);
+          } else {
+            result = { error: 'Provide either file_base64 or public_url.' };
+          }
+          break;
+        }
+
+        case 'crm_whoami':
+          result = await crm.get('/me');
+          break;
+
+        case 'crm_list_scheduled_sends': {
+          const params: Record<string, unknown> = { status: 'scheduled' };
+          if (a.contact_id) params.contact_id = a.contact_id;
+          if (a.opportunity_id) params.opportunity_id = a.opportunity_id;
+          if (a.per_page) params.per_page = a.per_page;
+          result = await crm.get('/email-drafts?' + qs(params));
+          break;
+        }
 
         default:
           return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
