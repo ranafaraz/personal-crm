@@ -16,6 +16,43 @@ class LinkedInTextHelper
      *   - Collapses runs of 3+ newlines to two
      *   - Trims leading/trailing whitespace
      */
+    /**
+     * Escape reserved "little text format" characters for LinkedIn's commentary field.
+     *
+     * Must be called AFTER htmlToLinkedInText() — operate on the final plain text,
+     * not on HTML, or entity characters such as < > will be double-escaped.
+     *
+     * Rules (LinkedIn Posts API — "Little Text" format):
+     *   - Backslash first, so added backslashes are not double-escaped.
+     *   - | { } [ ] ( ) < > * _ ~ are always escaped.
+     *   - # is escaped only when NOT starting a valid hashtag token (#Word).
+     *   - @ is escaped only when NOT followed by a word character (prose "@").
+     *
+     * Hashtags appended by buildCommentary() are plain #Tokens — their leading #
+     * is a valid hashtag, so they are NOT escaped by the conditional rules above.
+     */
+    public static function escapeForCommentary(string $text): string
+    {
+        if ($text === '') {
+            return '';
+        }
+
+        // Escape backslash first to avoid double-escaping backslashes we add.
+        $text = str_replace('\\', '\\\\', $text);
+
+        foreach (['|', '{', '}', '[', ']', '(', ')', '<', '>', '*', '_', '~'] as $ch) {
+            $text = str_replace($ch, '\\' . $ch, $text);
+        }
+
+        // '#' only when NOT the start of a valid hashtag token (letter/digit/underscore).
+        $text = preg_replace('/#(?![\p{L}\p{N}_])/u', '\\#', $text) ?? $text;
+
+        // '@' only when NOT followed by a word character.
+        $text = preg_replace('/@(?![\p{L}\p{N}_])/u', '\\@', $text) ?? $text;
+
+        return $text;
+    }
+
     public static function htmlToLinkedInText(string $html): string
     {
         if ($html === '') {

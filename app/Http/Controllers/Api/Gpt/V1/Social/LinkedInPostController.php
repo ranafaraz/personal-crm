@@ -10,6 +10,7 @@ use App\Models\SocialPost;
 use App\Models\SocialPostConfirmation;
 use App\Models\SocialPostTarget;
 use App\Services\Social\LinkedInPostsService;
+use App\Services\Social\LinkedInTextHelper;
 use App\Services\Social\SocialPostSchedulerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -496,6 +497,14 @@ class LinkedInPostController extends GptController
             $base['hashtags']           = $post->hashtags();
             $base['article_url']        = $post->article_url;
             $base['author_member_urn']  = $post->author_member_urn;
+
+            // The exact plain text LinkedIn will display (after HTML→text conversion,
+            // before escaping). Agents can self-verify length and content before scheduling.
+            $plainBody = LinkedInTextHelper::htmlToLinkedInText($post->post_body ?? '');
+            $tags      = $post->hashtagString();
+            $preview   = $tags ? "{$plainBody}\n\n{$tags}" : $plainBody;
+            $base['linkedin_text_preview'] = $preview;
+            $base['linkedin_text_length']  = mb_strlen($preview);
 
             // Include attached media so the agent can verify image without a browser (A6).
             $base['media'] = $post->mediaAssets()->get()->map(fn ($a) => [

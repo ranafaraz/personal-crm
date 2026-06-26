@@ -8,6 +8,7 @@ use App\Models\SocialPost;
 use App\Models\SocialPostTarget;
 use App\Models\SocialPublishJob;
 use Illuminate\Support\Facades\Log;
+use App\Services\Social\LinkedInTextHelper;
 
 class LinkedInPublishService
 {
@@ -48,6 +49,9 @@ class LinkedInPublishService
             }
 
             $postUrn = $this->posts->publish($token, $post, $authorUrn);
+
+            // Verify LinkedIn stored the full commentary — silently truncates on unescaped chars.
+            $this->verifyCommentaryLength($token, $post, $postUrn);
 
             $postUrl = $this->buildPostUrl($postUrn);
 
@@ -127,6 +131,43 @@ class LinkedInPublishService
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Compare the commentary LinkedIn stored against what we sent.
+     * LinkedIn silently truncates at the first unescaped reserved character,
+     * so a significantly shorter returned commentary means the post was mangled.
+     * Throws LinkedInPermanentException (caught by the outer try/catch) so the
+     * target is marked failed instead of silently published.
+     */
+    private function verifyCommentaryLength(string $token, SocialPost $post, string $postUrn): void
+    {
+        try {
+            $live = $this->posts->get($token, $postUrn);
+        } catch (\Throwable) {
+            return; // Verification fetch failed — not fatal, post was accepted by LinkedIn.
+        }
+
+        if ($live === null) {
+            return;
+        }
+
+        $body = LinkedInTextHelper::htmlToLinkedInText($post->post_body ?? '');
+        $tags = $post->hashtagString();
+        $sentPlain = $tags ? "{$body}\n\n{$tags}" : $body;
+
+        $sentLen = mb_strlen($sentPlain);
+        $liveLen = mb_strlen($live['commentary'] ?? '');
+
+        // Threshold: live commentary must be at least 85% the length of what we sent.
+        // Escape chars add backslashes so LinkedIn displays a slightly shorter string —
+        // the 15% margin covers that. A genuine truncation drops far more.
+        if ($sentLen > 50 && $liveLen < (int) ($sentLen * 0.85)) {
+            throw new LinkedInPermanentException(
+                "LinkedIn truncated commentary: sent ~{$sentLen} chars, received ~{$liveLen} chars. " .
+                'Post body likely contained an unescaped reserved character.'
+            );
+        }
+    }
 
     private function buildPostUrl(string $postUrn): ?string
     {

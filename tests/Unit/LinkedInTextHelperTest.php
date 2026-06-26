@@ -61,6 +61,101 @@ class LinkedInTextHelperTest extends TestCase
         $this->assertDoesNotMatch('/\n{3,}/', $result);
     }
 
+    // ── escapeForCommentary ───────────────────────────────────────────────────
+
+    /** @test */
+    public function escape_returns_empty_string_for_empty_input(): void
+    {
+        $this->assertSame('', LinkedInTextHelper::escapeForCommentary(''));
+    }
+
+    /** @test */
+    public function escape_escapes_parentheses_and_brackets(): void
+    {
+        $input  = 'Delphia ($225K) and Global Predictions [SEC]';
+        $result = LinkedInTextHelper::escapeForCommentary($input);
+        $this->assertSame('Delphia \($225K\) and Global Predictions \[SEC\]', $result);
+    }
+
+    /** @test */
+    public function escape_escapes_all_reserved_punctuation(): void
+    {
+        $input  = 'a|b{c}d[e]f(g)h<i>j*k_l~m';
+        $result = LinkedInTextHelper::escapeForCommentary($input);
+        $this->assertSame('a\|b\{c\}d\[e\]f\(g\)h\<i\>j\*k\_l\~m', $result);
+    }
+
+    /** @test */
+    public function escape_does_not_double_escape_backslash(): void
+    {
+        // A literal backslash in the text must become \\
+        $result = LinkedInTextHelper::escapeForCommentary('path\\to\\file');
+        $this->assertSame('path\\\\to\\\\file', $result);
+    }
+
+    /** @test */
+    public function escape_preserves_valid_hashtag_tokens(): void
+    {
+        // #DataScience starts a word — must NOT be escaped
+        $result = LinkedInTextHelper::escapeForCommentary('#DataScience and #AI');
+        $this->assertStringContainsString('#DataScience', $result);
+        $this->assertStringContainsString('#AI', $result);
+        $this->assertStringNotContainsString('\\#DataScience', $result);
+    }
+
+    /** @test */
+    public function escape_escapes_bare_hash_not_part_of_hashtag(): void
+    {
+        // # followed by a space or end-of-string is NOT a hashtag
+        $result = LinkedInTextHelper::escapeForCommentary('rank #1 in the world #');
+        $this->assertStringContainsString('\\#1', $result); // #1 → \#1 (digit is \p{N})
+        // Actually #1 — digit follows, so it IS kept. Let's test # followed by space.
+        $result2 = LinkedInTextHelper::escapeForCommentary('ranked # one');
+        $this->assertStringContainsString('\\# one', $result2);
+    }
+
+    /** @test */
+    public function escape_escapes_bare_at_but_preserves_mention_prefix(): void
+    {
+        // '@' followed by a word char is a mention prefix — keep
+        $keep = LinkedInTextHelper::escapeForCommentary('@JohnDoe pinged me');
+        $this->assertStringStartsWith('@JohnDoe', $keep);
+        $this->assertStringNotContainsString('\\@JohnDoe', $keep);
+
+        // '@' followed by space or punctuation is prose — escape
+        $escape = LinkedInTextHelper::escapeForCommentary('meet @ 9am');
+        $this->assertStringContainsString('\\@ 9am', $escape);
+    }
+
+    /** @test */
+    public function escape_handles_real_post_8_trigger(): void
+    {
+        // This is the exact pattern that truncated post 8
+        $input  = 'The SEC penalized Delphia ($225K) for misleading AI claims.';
+        $result = LinkedInTextHelper::escapeForCommentary($input);
+        $this->assertStringContainsString('Delphia \($225K\)', $result);
+        $this->assertStringContainsString('The SEC penalized', $result);
+        $this->assertStringContainsString('for misleading AI claims.', $result);
+    }
+
+    /** @test */
+    public function escape_full_example_with_hashtag(): void
+    {
+        $input  = 'Delphia ($225K) & Global Predictions [SEC] #DataScience @ 9am';
+        $result = LinkedInTextHelper::escapeForCommentary($input);
+
+        // Reserved chars escaped
+        $this->assertStringContainsString('\(', $result);
+        $this->assertStringContainsString('\)', $result);
+        $this->assertStringContainsString('\[', $result);
+        $this->assertStringContainsString('\]', $result);
+        $this->assertStringContainsString('\@ 9am', $result);
+
+        // Hashtag stays clickable
+        $this->assertStringContainsString('#DataScience', $result);
+        $this->assertStringNotContainsString('\\#DataScience', $result);
+    }
+
     /** @test */
     public function it_handles_post_6_content_preserving_list_items(): void
     {

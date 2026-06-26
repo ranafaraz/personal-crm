@@ -33,7 +33,7 @@ class LinkedInPostsService
      */
     public function update(string $token, string $postUrn, string $newCommentary): void
     {
-        $this->client->updatePost($token, $postUrn, $newCommentary);
+        $this->client->updatePost($token, $postUrn, LinkedInTextHelper::escapeForCommentary($newCommentary));
     }
 
     /**
@@ -131,7 +131,11 @@ class LinkedInPostsService
 
     private function buildCommentary(SocialPost $post): string
     {
-        $body = LinkedInTextHelper::htmlToLinkedInText($post->post_body ?? '');
+        // Escape AFTER HTML→text conversion so HTML entities (< > &) are decoded first.
+        $body = LinkedInTextHelper::escapeForCommentary(
+            LinkedInTextHelper::htmlToLinkedInText($post->post_body ?? '')
+        );
+        // Hashtags are valid #Token format — their leading # must NOT be escaped.
         $tags = $post->hashtagString();
         return $tags ? "{$body}\n\n{$tags}" : $body;
     }
