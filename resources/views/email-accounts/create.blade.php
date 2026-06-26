@@ -153,7 +153,7 @@
         {{-- Notes --}}
         <div class="bg-white border border-slate-200 rounded-xl p-6 mb-5">
             <h2 class="text-sm font-semibold text-slate-800 mb-4">Notes</h2>
-            <textarea name="notes" rows="3" placeholder="Optional notes about this account..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">{{ old('notes') }}</textarea>
+            <x-rich-editor name="notes" :value="old('notes')" placeholder="Optional notes about this account..." />
         </div>
 
         <div class="flex gap-3">

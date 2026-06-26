@@ -2,19 +2,10 @@
     $isEdit = isset($signature);
 @endphp
 
-@push('styles')
-    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
-    <style>
-        .ql-toolbar.ql-snow, .ql-container.ql-snow { border-color: rgb(203 213 225); }
-        .ql-container.ql-snow { min-height: 180px; border-bottom-left-radius: 0.5rem; border-bottom-right-radius: 0.5rem; }
-        .ql-toolbar.ql-snow { border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem; background: rgb(248 250 252); }
-    </style>
-@endpush
-
 <div class="max-w-3xl">
     <div class="mb-4"><a href="{{ route('email-signatures.index') }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to Signatures</a></div>
     <div class="bg-white border border-slate-200 rounded-xl p-6">
-        <form method="POST" action="{{ $isEdit ? route('email-signatures.update', $signature) : route('email-signatures.store') }}" enctype="multipart/form-data" class="space-y-5" onsubmit="document.getElementById('signatureBody').value = window.signatureQuill ? window.signatureQuill.root.innerHTML : document.getElementById('signatureBody').value;">
+        <form method="POST" action="{{ $isEdit ? route('email-signatures.update', $signature) : route('email-signatures.store') }}" enctype="multipart/form-data" class="space-y-5">
             @csrf
             @if($isEdit)
                 @method('PUT')
@@ -35,8 +26,7 @@
 
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Signature Body</label>
-                <div id="signatureEditor"></div>
-                <textarea name="body" id="signatureBody" class="hidden">{{ old('body', $signature->body ?? '') }}</textarea>
+                <x-rich-editor name="body" :value="old('body', $signature->body ?? '')" placeholder="Write your signature text here..." />
             </div>
 
             <div>
@@ -66,28 +56,3 @@
         </form>
     </div>
 </div>
-
-@push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    window.signatureQuill = new Quill('#signatureEditor', {
-        theme: 'snow',
-        placeholder: 'Write your signature text here...',
-        modules: {
-            toolbar: [
-                ['bold', 'italic', 'underline'],
-                [{ color: [] }],
-                [{ list: 'ordered' }, { list: 'bullet' }],
-                ['link'],
-                ['clean'],
-            ],
-        },
-    });
-    const body = document.getElementById('signatureBody').value;
-    if (body) {
-        window.signatureQuill.clipboard.dangerouslyPasteHTML(body);
-    }
-});
-</script>
-@endpush
