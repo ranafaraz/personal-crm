@@ -37,14 +37,8 @@ class OpportunityController extends Controller
             $query->where('priority', $priority);
         }
 
-        // Default sort: priority (urgent → low) → soonest deadline → most recent.
-        // CASE keeps this portable across MySQL/MariaDB and SQLite; undefined
-        // priority values sort to the end of the bucket.
         $opportunities = $query
-            ->orderByRaw("CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC")
-            ->orderByRaw('CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC')
-            ->orderBy('deadline', 'asc')
-            ->orderByDesc('updated_at')
+            ->orderByDesc('created_at')
             ->paginate(25)
             ->withQueryString();
 
