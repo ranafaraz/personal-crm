@@ -93,7 +93,7 @@ class SocialPost extends Model
 
     public function isEditable(): bool
     {
-        return in_array($this->status, ['idea', 'draft', 'ready_for_review', 'failed']);
+        return in_array($this->status, ['idea', 'draft', 'ready_for_review', 'approved', 'scheduled', 'failed']);
     }
 
     public function hashtags(): array
